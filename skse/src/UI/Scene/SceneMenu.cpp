@@ -45,17 +45,17 @@ namespace UI::Scene {
     void SceneMenu::Hide() { OStimMenu::Hide(); }
 
     void SceneMenu::SendControl(int32_t control) {
-        QueueUITask([this, control]() {
+        /*QueueUITask([this, control]() {
             Locker locker(_lock);
             RE::GFxValue optionBoxes;
             GetOptionBoxes(optionBoxes);
             const RE::GFxValue val{control};
             optionBoxes.Invoke("HandleKeyboardInput", nullptr, &val, 1);
-        });
+        });*/
     }
 
     void SceneMenu::Handle(UI::Controls control) {
-        switch (control) {
+        /*switch (control) {
             case Up: {
                 SendControl(0);
             } break;
@@ -71,7 +71,7 @@ namespace UI::Scene {
             case Yes: {
                 SendControl(4);
             } break;
-        }
+        }*/
     }
 
     void SceneMenu::ApplyPositions() {
