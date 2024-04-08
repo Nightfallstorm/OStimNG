@@ -4,6 +4,8 @@
 
 #include "GameLogic/GameTable.h"
 
+#include "VRAPI/OstimVR.h"
+
 namespace GameAPI {
     namespace GameEvents {
         void sendStartEvent(int threadID) {
@@ -11,6 +13,9 @@ namespace GameAPI {
             if (threadID == 0) {
                 GameUtil::sendModEvent(GameLogic::GameTable::getMainQuest(), "ostim_prestart", "", 0);
                 GameUtil::sendModEvent(GameLogic::GameTable::getMainQuest(), "ostim_start", "", 0);
+
+                //Player Scene Start functions
+                OStimVR::PlayerSceneStart();
             }
             GameUtil::sendModEvent(GameLogic::GameTable::getMainQuest(), "ostim_thread_start", "", threadID);
         }
@@ -38,6 +43,9 @@ namespace GameAPI {
             if (threadID == 0) {
                 GameUtil::sendModEvent(GameLogic::GameTable::getMainQuest(), "ostim_end", "", -1);
                 GameUtil::sendModEvent(GameLogic::GameTable::getMainQuest(), "ostim_totalend", "", 0);
+
+                //Player Scene End functions
+                OStimVR::PlayerSceneEnd();
             }
             GameUtil::sendModEvent(GameLogic::GameTable::getMainQuest(), "ostim_thread_end", "", threadID);
         }

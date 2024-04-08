@@ -14,6 +14,9 @@
 #include "UI/UIState.h"
 #include "Util/RNGUtil.h"
 
+#include "VRAPI/OstimVRpluginapi.h"
+#include "VRAPI/OstimVR.h"
+
 using namespace RE::BSScript;
 using namespace SKSE;
 using namespace SKSE::log;
@@ -48,6 +51,11 @@ namespace {
                 OSAInterfaceExchangeMessage* exchangeMessage = (OSAInterfaceExchangeMessage*)a_msg->data;
                 exchangeMessage->interfaceMap = InterfaceMap::GetSingleton();
             } break;
+            case OstimVRPluginAPI::OstimVRMessage::kMessage_GetInterface : {
+                OstimVRPluginAPI::OstimVRMessage* ostimMessage = (OstimVRPluginAPI::OstimVRMessage*)a_msg->data;
+                ostimMessage->GetApiFunction = OstimVRPluginAPI::GetApi;
+                logger::info("Provided OstimVR plugin interface to {}", a_msg->sender);
+            } break;
         }
     }
 
@@ -60,12 +68,19 @@ namespace {
 
                 auto message = SKSE::GetMessagingInterface();
                 if (message) {
-                    message->RegisterListener(nullptr, UnspecificedSenderMessageHandler);
+                    message->RegisterListener(nullptr, UnspecificedSenderMessageHandler);                      
                 }
 
                 Core::postLoad();
             } break;
             case SKSE::MessagingInterface::kPostPostLoad: {
+                OStimVR::vrikInterface = vrikPluginApi::getVrikInterface001();
+                if (OStimVR::vrikInterface) {
+                    logger::info("Got VRIK interface");
+                } else {
+                    logger::info("Did not get VRIK interface");
+                }
+
                 Core::postpostLoad();
 
                 // we are installing this hook so late because we need it to overwrite the PapyrusUtil hook
@@ -79,6 +94,7 @@ namespace {
 
                 UI::PostRegisterMenus();
 
+                OStimVR::loadConfig();
                 Core::dataLoaded();
                 SKSE::GetTaskInterface()->AddTask([]() { Core::postDataLoaded(); });
             } break;
