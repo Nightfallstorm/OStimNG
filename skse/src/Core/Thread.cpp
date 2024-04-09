@@ -26,6 +26,7 @@
 #include "Util/ObjectRefUtil.h"
 #include "Util/StringUtil.h"
 #include "Util.h"
+#include <VRAPI/OstimVR.h>
 
 namespace OStim {
     Thread::Thread(int threadID, ThreadStartParams params) : m_threadId{threadID}, furniture{params.furniture} {
@@ -373,11 +374,16 @@ namespace OStim {
         float z = alignment.offsetZ + offset.z;
         float r = alignment.rotation + offset.r;
 
-        threadActor->getActor().lockAtPosition(
-            center.x + cos * x + sin * y,
-            center.y - sin * x + cos * y,
-            center.z + z,
-            center.r + MathUtil::toRadians(r));
+        if (REL::Module::IsVR() && threadActor->getActor().isPlayer()) 
+        {
+            OStimVR::VRIKLockPositionAndRotation(sin, cos, center.x + cos * x + sin * y, center.y - sin * x + cos * y,
+                                                 center.z + z, center.r + MathUtil::toRadians(r));
+        } 
+        else 
+        {
+            threadActor->getActor().lockAtPosition(center.x + cos * x + sin * y, center.y - sin * x + cos * y,
+                                                   center.z + z, center.r + MathUtil::toRadians(r));
+        }
 
         threadActor->setScaleMult(alignment.scale * furnitureScaleMult);
         threadActor->setSoSBend(alignment.sosBend);
