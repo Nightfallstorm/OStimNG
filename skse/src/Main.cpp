@@ -86,6 +86,12 @@ namespace {
                 } else {
                     logger::info("Did not get Spell Wheel VR interface");
                 }
+                OStimVR::controllerFixInterface = ControllerFixPluginApi::getControllerFixInterface001();
+                if (OStimVR::controllerFixInterface) {
+                    logger::info("Got Controller Fix VR interface");
+                } else {
+                    logger::info("Did not get Controller Fix VR interface");
+                }
 
                 Core::postpostLoad();
 
@@ -101,6 +107,9 @@ namespace {
                 UI::PostRegisterMenus();
 
                 OStimVR::loadConfig();
+                OStimVR::loadSceneAlignmentsConfig();
+                OStimVR::loadGlobalAlignmentConfig();
+
                 Core::dataLoaded();
                 SKSE::GetTaskInterface()->AddTask([]() { Core::postDataLoaded(); });
             } break;

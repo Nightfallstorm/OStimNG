@@ -74,6 +74,9 @@ namespace OStim {
         void close();
 
         inline bool isPlayerThread() { return playerThread; }
+
+        inline GameAPI::GamePosition getCenter() { return center; };
+
     public:
         virtual RE::BSEventNotifyControl ProcessEvent(const RE::BSAnimationGraphEvent* a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource) override;
 
