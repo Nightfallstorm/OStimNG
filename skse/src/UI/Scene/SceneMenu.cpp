@@ -94,6 +94,7 @@ namespace UI::Scene {
     }
 
     void SceneMenu::UpdateMenuData() {
+
         QueueUITask([this]() {
             Locker locker(_lock);
             RE::GFxValue menuValues;
@@ -114,6 +115,7 @@ namespace UI::Scene {
     }
 
     void SceneMenu::BuildMenuData(MenuData& menuData) {
+
         auto state = UI::UIState::GetSingleton();
         auto currentNode = state->currentNode;
         if (!state->currentNode) return;
@@ -187,7 +189,7 @@ namespace UI::Scene {
         if (UI::Scene::SceneOptions::GetSingleton()->Handle(std::stoi(idx)) == UI::Scene::HandleResult::kExit) {
             SetOptionsOpen(false);
         }
-        UpdateMenuData();
+        //UpdateMenuData();
     }
 
     void SceneMenu::ChangeSpeed(bool up) {
