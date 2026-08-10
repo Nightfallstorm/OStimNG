@@ -1,4 +1,4 @@
-;/* OFurniture
+;/* OSKSE
 * * bunch of functions supposed to be called from the SKSE plugin
 * * meant for internal use and not to be called by addons
 * * some of these are still save to call, however others are not
@@ -58,9 +58,13 @@ EndFunction
 * * @param: Target, the actor the dialogue should be said to
 * * @param: Dialogue, the dialogue
 */;
-Function SayPostDialogue(Actor Act, Actor Target, Topic Dialogue, float Delay) Global
+Function SayPostDialogue(Actor Act, Actor Target, Topic Dialogue, VoiceType Voice, float Delay) Global
 	Utility.Wait(Delay)
-	OActorUtil.SayTo(Act, Target, Dialogue)
+	If Voice
+		OActorUtil.SayAs(Act, Target, Dialogue, Voice)
+	Else
+		OActorUtil.SayTo(Act, Target, Dialogue)
+	EndIf
 EndFunction
 
 ;/* FadeToBlack

@@ -4,6 +4,26 @@
 #include "Util/StringUtil.h"
 
 namespace Threading {
+    void ThreadActor::changeNodeEquipObjects(Graph::GraphActor* graphActor) {
+        if (this->graphActor) {
+            for (std::string equipObject : this->graphActor->equipObjects) {
+                if (graphActor->equipObjects.find(equipObject) == graphActor->equipObjects.end()) {
+                    unequipObject(equipObject);
+                }
+            }
+
+            for (std::string equipObject : graphActor->equipObjects) {
+                if (this->graphActor->equipObjects.find(equipObject) == this->graphActor->equipObjects.end()) {
+                    this->equipObject(equipObject);
+                }
+            }
+        } else {
+            for (std::string equipObject : graphActor->equipObjects) {
+                this->equipObject(equipObject);
+            }
+        }
+    }
+
     void ThreadActor::loopEquipObjects() {
         for (auto& [type, object] : equipObjects) {
             if (object.variantDuration > 0) {
@@ -35,6 +55,7 @@ namespace Threading {
     }
 
     void ThreadActor::unequipObject(std::string type) {
+        StringUtil::toLower(&type);
         auto iter = equipObjects.find(type);
         if (iter != equipObjects.end()) {
             iter->second.unequip(actor);
@@ -42,6 +63,7 @@ namespace Threading {
     }
 
     bool ThreadActor::isObjectEquipped(std::string type) {
+        StringUtil::toLower(&type);
         auto iter = equipObjects.find(type);
         if (iter != equipObjects.end()) {
             return iter->second.equipped;
@@ -50,6 +72,8 @@ namespace Threading {
     }
 
     bool ThreadActor::setObjectVariant(std::string type, std::string variant, int duration) {
+        StringUtil::toLower(&type);
+        StringUtil::toLower(&variant);
         auto iter = equipObjects.find(type);
         if (iter != equipObjects.end()) {
             return iter->second.setVariant(actor, variant, duration);
@@ -65,6 +89,7 @@ namespace Threading {
     }
 
     void ThreadActor::unsetObjectVariant(std::string type) {
+        StringUtil::toLower(&type);
         auto iter = equipObjects.find(type);
         if (iter != equipObjects.end()) {
             iter->second.unsetVariant(actor);
@@ -72,6 +97,7 @@ namespace Threading {
     }
 
     void ThreadActor::refreshObject(std::string type) {
+        StringUtil::toLower(&type);
         auto iter = equipObjects.find(type);
         if (iter == equipObjects.end()) {
             return;

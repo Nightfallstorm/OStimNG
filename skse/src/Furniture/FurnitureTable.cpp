@@ -1,5 +1,6 @@
 #include "FurnitureTable.h"
 
+#include "Core/ThreadManager.h"
 #include "GameAPI/GameList.h"
 #include "Util/JsonFileLoader.h"
 #include "Util/JsonUtil.h"
@@ -12,7 +13,7 @@ namespace Furniture {
         std::unordered_map<std::string, std::string> rawSuperTypes;
 
         Util::JsonFileLoader::LoadFilesInSubfolders(FURNITURE_TYPE_FILE_PATH, [&rawSuperTypes](std::string path, std::string filename, json json) {
-            FurnitureType furnitureType{.id = filename};
+            FurnitureType furnitureType(filename);
             StringUtil::toLower(&furnitureType.id);
 
             JsonUtil::loadTranslatedString(json, furnitureType.name, "name", filename, "furniture type", false);
@@ -29,6 +30,24 @@ namespace Furniture {
             JsonUtil::loadGameRecord(json, furnitureType.offsetXGlobal, "offsetXGlobal", filename, "furniture type", path, false);
             JsonUtil::loadGameRecord(json, furnitureType.offsetYGlobal, "offsetYGlobal", filename, "furniture type", path, false);
             JsonUtil::loadGameRecord(json, furnitureType.offsetZGlobal, "offsetZGlobal", filename, "furniture type", path, false);
+
+            if (json.contains("faction")) {
+                if (json["faction"].is_array()) {
+                    for (auto& jsonFaction : json["faction"]) {
+                        GameAPI::GameFaction faction;
+                        faction.loadJson(path, jsonFaction);
+                        if (faction) {
+                            furnitureType.factions.push_back(faction);
+                        }
+                    }
+                } else {
+                    GameAPI::GameFaction faction;
+                    faction.loadJson(path, json["faction"]);
+                    if (faction) {
+                        furnitureType.factions.push_back(faction);
+                    }
+                }
+            }
 
             if (json.contains("supertype")) {
                 if (json["supertype"].is_string()) {
@@ -192,7 +211,9 @@ namespace Furniture {
             furnitureTypes[furnitureType.id] = furnitureType;
         });
 
-        furnitureTypes["none"] = {.id = "none", .name = "None"};
+        FurnitureType none("none");
+        none.name = "None";
+        furnitureTypes["none"] = none;
 
         for (auto& [subtype, supertype] : rawSuperTypes) {
             if (furnitureTypes.contains(supertype)) {
@@ -204,8 +225,18 @@ namespace Furniture {
     }
 
     FurnitureType* FurnitureTable::getFurnitureType(GameAPI::GameObject object, bool inUseCheck) {
-        if (!object || object.isDisabled() || object.isDeleted() || (inUseCheck && object.isInUse())) {
+        if (!object || object.isDisabled() || object.isDeleted()) {
             return &furnitureTypes["none"];
+        }
+
+        if (inUseCheck) {
+            if (object.isInUse()) {
+                return &furnitureTypes["none"];
+            }
+
+            if (Threading::ThreadManager::GetSingleton()->findThread(object)) {
+                return &furnitureTypes["none"];
+            }
         }
 
         FurnitureType* currentType = nullptr;

@@ -49,6 +49,8 @@ namespace Threading {
         Util::APITable::getTimesClimaxedFaction().add(actor);
         Util::APITable::getTimeUntilClimaxFaction().add(actor, -1);
 
+        addToStatList(Util::APITable::getActorList());
+
         if (MCM::MCMTable::removeWeaponsAtStart()) {
             removeWeapons();
         }
@@ -84,49 +86,7 @@ namespace Threading {
     }
 
 
-    void ThreadActor::undress() {
-        if (thread->isFlagged(ThreadFlag::NO_UNDRESSING)) {
-            return;
-        }
-
-        // TODO properly use GameActor
-        if (Util::Globals::usePapyrusUndressing()) {
-            const auto skyrimVM = RE::SkyrimVM::GetSingleton();
-            auto vm = skyrimVM ? skyrimVM->impl : nullptr;
-            if (vm) {
-                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback(new PapyrusUndressCallbackFunctor(this, false));
-                auto args = RE::MakeFunctionArguments(std::move(thread->m_threadId), std::move(actor.form));
-                vm->DispatchStaticCall("OUndress", "Undress", args, callback);
-            }
-            return;
-        }
-
-        if (undressed) {
-            return;
-        }
-
-        std::vector<GameAPI::GameArmor> equippedItems = actor.getEquippedItems();
-        for (GameAPI::GameArmor item : equippedItems) {
-            // TODO GameArmor
-            if (!FormUtil::canUndress(item.form)) {
-                continue;
-            }
-            // TODO GameArmor
-            if (!MCM::MCMTable::undressWigs() && FormUtil::isWig(actor.form, item.form)) {
-                continue;
-            }
-
-            undressedMask.add(item.getSlotMask());
-            undressedItems.push_back(item);
-            actor.unequip(item);
-        }
-
-        actor.update3D();
-
-        undressed = true;
-    }
-
-    void ThreadActor::undressPartial(GameAPI::GameSlotMask mask) {
+    void ThreadActor::undressPartialInternal(GameAPI::GameSlotMask mask) {
         if ((thread->getThreadFlags() & ThreadFlag::NO_UNDRESSING) == ThreadFlag::NO_UNDRESSING) {
             return;
         }
@@ -177,47 +137,7 @@ namespace Threading {
         undressedMask.add(mask);
     }
 
-    void ThreadActor::removeWeapons() {
-        if (weaponsRemoved) {
-            return;
-        }
-
-        weaponry = actor.getWeaponry();
-        actor.unequipWeaponry();
-        weaponsRemoved = true;
-    }
-
-    void ThreadActor::redress() {
-        // TODO properly use GameActor
-        if (Util::Globals::usePapyrusUndressing()) {
-            const auto skyrimVM = RE::SkyrimVM::GetSingleton();
-            auto vm = skyrimVM ? skyrimVM->impl : nullptr;
-            if (vm) {
-                std::vector<RE::TESObjectARMO*> armors;
-                for (GameAPI::GameArmor item : undressedItems) {
-                    armors.push_back(item.form);
-                }
-                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback(new PapyrusUndressCallbackFunctor(this, true));
-                auto args = RE::MakeFunctionArguments(std::move(thread->m_threadId), std::move(actor.form), std::move(armors));
-                vm->DispatchStaticCall("OUndress", "Redress", args, callback);
-            }
-            return;
-        }
-
-        if (undressedMask.isEmpty()) {
-            return;
-        }
-
-        for (GameAPI::GameArmor item : undressedItems) {
-            actor.equip(item);
-        }
-        undressedItems.clear();
-        undressedMask.clear();
-
-        undressed = false;
-    }
-
-    void ThreadActor::redressPartial(GameAPI::GameSlotMask mask) {
+    void ThreadActor::redressPartialInternal(GameAPI::GameSlotMask mask) {
         // TODO properly use GameActor
         if (Util::Globals::usePapyrusUndressing()) {
             const auto skyrimVM = RE::SkyrimVM::GetSingleton();
@@ -257,22 +177,10 @@ namespace Threading {
         undressedMask.filter(mask);
     }
 
-    void ThreadActor::addWeapons() {
-        if (!weaponsRemoved) {
-            return;
-        }
-
-        actor.equipWeaponry(weaponry);
-        weaponsRemoved = false;
-    }
-
     void ThreadActor::changeNode(Graph::GraphActor* graphActor, std::vector<Trait::FacialExpression*>* nodeExpressions, std::vector<Trait::FacialExpression*>* overrideExpressions) {
-        if (this->graphActor) {
-            for (GameAPI::GameFaction faction : this->graphActor->factions) {
-                faction.remove(actor);
-            }
-        }
-
+        changeNodeAPIPre();
+        changeNodeEquipObjects(graphActor);
+        
         this->graphActor = graphActor;
 
         sosOffset = 0;
@@ -314,9 +222,7 @@ namespace Threading {
             primaryPartner = actor;
         }
 
-        for (GameAPI::GameFaction faction : graphActor->factions) {
-            faction.add(actor);
-        }
+        changeNodeAPIPost();
 
         if (awaitingClimax) {
             climax();
@@ -417,11 +323,7 @@ namespace Threading {
     void ThreadActor::free() {
         logger::info("freeing actor {}-{}: {}", thread->m_threadId, index, actor.getName());
 
-        if (this->graphActor) {
-            for (GameAPI::GameFaction faction : this->graphActor->factions) {
-                faction.remove(actor);
-            }
-        }
+        freeAPI();
 
         for (auto& [type, object] : equipObjects) {
             object.unequip(actor);
@@ -490,27 +392,96 @@ namespace Threading {
 
         logger::info("freed actor {}-{}: {}", thread->m_threadId, index, actor.getName());
 
-        if (!actor.isPlayer() && thread->getActors().size() > 1) {
+        if (!thread->isFlagged(ThreadFlag::NO_POST_DIALOGUE) && !actorMuted && !muted && !actor.isPlayer() && thread->getActors().size() > 1) {
             if (voiceSet.postSceneDialogue) {
-                GameAPI::GameActor target = thread->isPlayerThread() ? GameAPI::GameActor::getPlayer() : primaryPartner;
-                if (actor == target) {
-                    for (auto& [index, threadActor] : thread->getActors()) {
-                        if (threadActor.getActor() != actor) {
-                            target = threadActor.getActor();
-                            break;
-                        }
+                bool first = true;
+                for (int i = 0; i < index; i++) {
+                    GameAPI::GameActor partner = thread->GetActor(i)->getActor();
+                    if (!partner.isPlayer() && partner.getVoice() == actor.getVoice()) {
+                        first = false;
+                        break;
                     }
                 }
 
-                const auto skyrimVM = RE::SkyrimVM::GetSingleton();
-                auto vm = skyrimVM ? skyrimVM->impl : nullptr;
-                if (vm) {
-                    RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback;
-                    auto args = RE::MakeFunctionArguments(std::move(actor.form), std::move(target.form), std::move(voiceSet.postSceneDialogue.form), std::move(RNGUtil::uniformFloat(1.0f, 2.0f)));
-                    vm->DispatchStaticCall("OSKSE", "SayPostDialogue", args, callback);
+                if (first) {
+                    GameAPI::GameActor target = thread->isPlayerThread() ? GameAPI::GameActor::getPlayer() : primaryPartner;
+                    if (actor == target) {
+                        for (auto& [index, threadActor] : thread->getActors()) {
+                            if (threadActor.getActor() != actor) {
+                                target = threadActor.getActor();
+                                break;
+                            }
+                        }
+                    }
+
+                    const auto skyrimVM = RE::SkyrimVM::GetSingleton();
+                    auto vm = skyrimVM ? skyrimVM->impl : nullptr;
+                    if (vm) {
+                        GameAPI::GameVoice voice = voiceSet.voice;
+                        if (voice && voice == actor.getVoice()) {
+                            voice = {};
+                        }
+
+                        RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback;
+                        auto args = RE::MakeFunctionArguments(std::move(actor.form), std::move(target.form), std::move(voiceSet.postSceneDialogue.form), std::move(voice.form), std::move(RNGUtil::uniformFloat(1.0f, 2.0f)));
+                        vm->DispatchStaticCall("OSKSE", "SayPostDialogue", args, callback);
+                    }
                 }
             }
         }
+    }
+
+    void ThreadActor::freeFast() {
+        logger::info("freeing actor {}-{} FAST (no animations): {}", thread->m_threadId, index, actor.getName());
+
+        // Remove factions
+        freeAPI();
+
+        // Remove equip objects
+        for (auto& [type, object] : equipObjects) {
+            object.unequip(actor);
+            object.removeItems(actor);
+        }
+
+        // FORCE SYNCHRONOUS redressing - bypass Papyrus
+        // Use undressedItems (not undressedMask) because the Papyrus undressing path never sets undressedMask
+        if (!undressedItems.empty()) {
+            for (GameAPI::GameArmor item : undressedItems) {
+                actor.equip(item);
+            }
+            undressedItems.clear();
+            undressedMask.clear();
+            undressed = false;
+        }
+
+        // FORCE SYNCHRONOUS weapon re-equipping
+        if (weaponsRemoved) {
+            actor.equipWeaponry(weaponry);
+            weaponsRemoved = false;
+        }
+
+        // Reset appearance
+        applyHeelOffset(false);
+        actor.setScale(scaleBefore);
+        
+        // Unlock actor
+        freeActor(actor, false);
+
+        // Reset position SYNCHRONOUSLY - no AddTask delays
+        if (MCM::MCMTable::resetPosition()) {
+            actor.setPosition(positionBefore);
+        }
+
+        // Reset face
+        auto faceData = actor.form->GetFaceGenAnimationData();
+        if (faceData) {
+            faceData->ClearExpressionOverride();
+            faceData->Reset(0.0, true, true, true, false);
+        }
+
+        // NO post-scene dialogue for fast cleanup
+
+        logger::info("freed actor {}-{} FAST: complete", thread->m_threadId, index, actor.getName());
     }
 
     void ThreadActor::papyrusUndressCallback(std::vector<GameAPI::GameArmor> items) {
@@ -556,10 +527,118 @@ namespace Threading {
 
         oldThreadActor.factions = graphActor->factions;
 
+        if (Furniture::FurnitureType* furnitureType = thread->getFurnitureTypeInternal()) {
+            for (GameAPI::GameFaction faction : furnitureType->getFactions()) {
+                oldThreadActor.factions.push_back(faction);
+            }
+        }
+
         return oldThreadActor;
     }
 
+
     void* ThreadActor::getGameActor() {
-        return actor.toABIPointer();
+        return actor.toABIPointer(); }
+
+    void ThreadActor::undress() {
+        if (thread->isFlagged(ThreadFlag::NO_UNDRESSING)) {
+            return;
+        }
+
+        // TODO properly use GameActor
+        if (Util::Globals::usePapyrusUndressing()) {
+            const auto skyrimVM = RE::SkyrimVM::GetSingleton();
+            auto vm = skyrimVM ? skyrimVM->impl : nullptr;
+            if (vm) {
+                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback(
+                    new PapyrusUndressCallbackFunctor(this, false));
+                auto args = RE::MakeFunctionArguments(std::move(thread->m_threadId), std::move(actor.form));
+                vm->DispatchStaticCall("OUndress", "Undress", args, callback);
+            }
+            return;
+        }
+
+        if (undressed) {
+            return;
+        }
+
+        std::vector<GameAPI::GameArmor> equippedItems = actor.getEquippedItems();
+        for (GameAPI::GameArmor item : equippedItems) {
+            // TODO GameArmor
+            if (!FormUtil::canUndress(item.form)) {
+                continue;
+            }
+            // TODO GameArmor
+            if (!MCM::MCMTable::undressWigs() && FormUtil::isWig(actor.form, item.form)) {
+                continue;
+            }
+
+            undressedMask.add(item.getSlotMask());
+            undressedItems.push_back(item);
+            actor.unequip(item);
+        }
+
+        actor.update3D();
+
+        undressed = true;
+    }
+
+    void ThreadActor::undressPartial(uint32_t slotmask) {
+        undressPartialInternal(slotmask);
+    }
+
+    void ThreadActor::removeWeapons() {
+        if (weaponsRemoved) {
+            return;
+        }
+
+        weaponry = actor.getWeaponry();
+        actor.unequipWeaponry();
+        weaponsRemoved = true;
+    }
+
+    void ThreadActor::redress() {
+        // TODO properly use GameActor
+        if (Util::Globals::usePapyrusUndressing()) {
+            const auto skyrimVM = RE::SkyrimVM::GetSingleton();
+            auto vm = skyrimVM ? skyrimVM->impl : nullptr;
+            if (vm) {
+                std::vector<RE::TESObjectARMO*> armors;
+                for (GameAPI::GameArmor item : undressedItems) {
+                    armors.push_back(item.form);
+                }
+                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback(
+                    new PapyrusUndressCallbackFunctor(this, true));
+                auto args =
+                    RE::MakeFunctionArguments(std::move(thread->m_threadId), std::move(actor.form), std::move(armors));
+                vm->DispatchStaticCall("OUndress", "Redress", args, callback);
+            }
+            return;
+        }
+
+        if (undressedMask.isEmpty()) {
+            return;
+        }
+
+        for (GameAPI::GameArmor item : undressedItems) {
+            actor.equip(item);
+        }
+        undressedItems.clear();
+        undressedMask.clear();
+
+        undressed = false;
+    }
+
+    void ThreadActor::redressPartial(uint32_t slotmask) {
+        redressPartialInternal(slotmask);
+    }
+
+    void ThreadActor::addWeapons() {
+        if (!weaponsRemoved) {
+            return;
+        }
+
+        actor.equipWeaponry(weaponry);
+        weaponsRemoved = false;
     }
 }

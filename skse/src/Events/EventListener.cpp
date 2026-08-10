@@ -1,5 +1,6 @@
 #include "EventListener.h"
 
+#include "Core/ThreadStarter/DebugNPCThreadStarter.h"
 #include "Core/ThreadStarter/ThreadBuilder.h"
 #include "Core/ThreadStarter/ThreadStarter.h"
 #include "Core/Core.h"
@@ -61,7 +62,7 @@ namespace Events {
 
             uint32_t keyCode;
             RE::INPUT_DEVICE deviceType = bEvent->GetDevice();
-            uint32_t keyMask = bEvent->idCode;
+            uint32_t keyMask = bEvent->GetIDCode();
 
             if (deviceType == RE::INPUT_DEVICE::kMouse) {
                 keyCode = 256 + keyMask;
@@ -93,12 +94,26 @@ namespace Events {
                             Threading::startThread(params);
                         }
                     } else if (bEvent->IsUp() && bEvent->HeldDuration() >= 2.0) {
-                        if (!Threading::ThreadManager::GetSingleton()->playerThreadRunning()) {
-                            Threading::ThreadStartParams params = {.actors = {GameAPI::GameActor::getPlayer()}};
-                            Threading::startThread(params);
-                        }
+                        Threading::ThreadStartParams params = {.actors = {GameAPI::GameActor::getPlayer()}};
+                        Threading::startThread(params);
                     }
                 }
+                continue;
+            } else if (keyCode == MCM::MCMTable::keyNpcSceneStart()) {
+                if (bEvent->IsDown()) {
+                    if (Threading::ThreadManager::GetSingleton()->playerThreadRunning()) {
+                        continue;
+                    }
+
+                    GameAPI::GameActor target = GameAPI::Game::getCrosshairActor();
+                    if (!target) {
+                        continue;
+                    }
+
+                    Threading::ThreadStartParams params = {.actors = {target}};
+                    Threading::startDebugNPCThread(params);
+                }
+                continue;
             }
 
             if (!bEvent->IsDown()) {
@@ -156,11 +171,15 @@ namespace Events {
                     }
                 }
             } else if (keyCode == MCM::MCMTable::keyFreeCam()) {
-                GameAPI::GameCamera::toggleFreeCam();
+                if (REL::Module::IsVR() == false) {
+                    GameAPI::GameCamera::toggleFreeCam();
+                }
             } else if (keyCode == MCM::MCMTable::keyAlignment()) {
                 UI::UIState::GetSingleton()->ToggleActiveMenu(UI::kAlignMenu);
+                UI::UIState::GetSingleton()->HandleControl(UI::Controls::AlignMenu);
             } else if (keyCode == MCM::MCMTable::keySearch()) {
                 UI::UIState::GetSingleton()->ToggleActiveMenu(UI::kSearchMenu);
+                UI::UIState::GetSingleton()->HandleControl(UI::Controls::SearchMenu);
             } else if (keyCode == MCM::MCMTable::keyHideUI()) {
                 UI::UIState::GetSingleton()->HandleControl(UI::Controls::KEY_HIDE);
             }

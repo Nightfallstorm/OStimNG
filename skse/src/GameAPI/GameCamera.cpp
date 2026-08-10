@@ -30,21 +30,16 @@ namespace GameAPI {
                 // so the free cam toggle has to be slightly delayed or it will not be at the scene location
                 std::thread camThread = std::thread([&] {
                     std::this_thread::sleep_for(std::chrono::milliseconds(250));
-                    toggleFlyCamInner();
+                    SKSE::GetTaskInterface()->AddTask([] { 
+                        toggleFlyCamInner(); 
+                    });
                 });
                 camThread.detach();
             }
         } else {
             if (GameLogic::GameTable::improvedCamSupport()) {
                 camera->ForceFirstPerson();
-                if (REL::Module::get().version().patch() < 1130) {
-                    RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls.reset(RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
-                } else {
-                    // bandaid fix until CLib-NG is updated
-                    auto ptr = &RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls;
-                    ptr += 8;
-                    (*ptr).reset(RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
-                }
+                RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls.reset(RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
                 camera->ForceThirdPerson();
             }
         }
@@ -53,23 +48,16 @@ namespace GameAPI {
     void GameCamera::endSceneMode(bool firstPerson) {
         RE::PlayerCamera* camera = RE::PlayerCamera::GetSingleton();
         if (camera->IsInFreeCameraMode()) {
-            toggleFlyCamInner();
+            SKSE::GetTaskInterface()->AddTask([] { 
+                toggleFlyCamInner(); 
+            });
         } else if (GameLogic::GameTable::improvedCamSupport()) {
-            if (REL::Module::get().version().patch() < 1130) {
-                RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls.set(
-                    RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
-            } else {
-                // bandaid fix until CLib-NG is updated
-                auto ptr = &RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls;
-                ptr += 8;
-                (*ptr).set(RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
-            }
+            RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls.set(RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
         }
         if (firstPerson) {
-            std::thread camThread = std::thread([&] {
+            SKSE::GetTaskInterface()->AddTask([] {
                 RE::PlayerCamera::GetSingleton()->ForceFirstPerson();
             });
-            camThread.detach();
         }
 
         if (GameLogic::GameTable::improvedCamSupport()) {
@@ -78,54 +66,14 @@ namespace GameAPI {
     }
 
     void GameCamera::toggleFreeCam() {
-        auto camera = RE::PlayerCamera::GetSingleton();
-
-        if (!GameLogic::GameTable::improvedCamSupport()) {
-            if (camera->IsInFirstPerson()) {
-                camera->ForceThirdPerson();
-            }
-
-            toggleFlyCamInner();
-            return;
-        }
-
-        if (camera->IsInFreeCameraMode()) {
-            toggleFlyCamInner();
-            camera->ForceFirstPerson();
-            if (REL::Module::get().version().patch() < 1130) {
-                RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls.reset(
-                    RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
-            } else {
-                // bandaid fix until CLib-NG is updated
-                auto ptr = &RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls;
-                ptr += 8;
-                (*ptr).reset(RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
-            }
-            camera->ForceThirdPerson();
-        } else {
-            if (REL::Module::get().version().patch() < 1130) {
-                RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls.set(
-                    RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
-            } else {
-                // bandaid fix until CLib-NG is updated
-                auto ptr = &RE::ControlMap::GetSingleton()->GetRuntimeData().enabledControls;
-                ptr += 8;
-                (*ptr).set(RE::UserEvents::USER_EVENT_FLAG::kPOVSwitch);
-            }
-            toggleFlyCamInner();
+        if (REL::Module::IsVR()) {
+            return;  // TFC crashes in VR. We handled it with VRIK api.
         }
     }
 
     void GameCamera::toggleFlyCamInner() {
         if (REL::Module::IsVR()) {
-            return; // TODO: TFC crashes in VR, we may still want some version of it?
-        }
-        const auto scriptFactory = RE::IFormFactory::GetConcreteFormFactoryByType<RE::Script>();
-        const auto script = scriptFactory ? scriptFactory->Create() : nullptr;
-        if (script) {
-            script->SetCommand("tfc");
-            GameUtil::CompileAndRun(script, RE::PlayerCharacter::GetSingleton());
-            delete script;
+            return; // TFC crashes in VR. We handled it with VRIK api.
         }
     }
 

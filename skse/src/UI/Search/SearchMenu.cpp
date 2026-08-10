@@ -36,23 +36,31 @@ namespace UI::Search {
             OverrideFunction(optionBoxes, new doSearchFunction, "doSearch");
             OverrideFunction(optionBoxes, new doSelectOptionFunction, "doSelectOption");
             OverrideFunction(optionBoxes, new doSetInputtingTextFunction, "doSetInputtingText");
-            OStimMenu::PostRegister();
+            OStimMenu::PostRegister(); //for vr version
         });
     }
 
     void SearchMenu::SendControl(int32_t control) {
 
-        /*QueueUITask([this, control]() {
+#ifdef ENABLE_SKYRIM_VR
+        (void)control;
+#else
+        QueueUITask([this, control]() {
             Locker locker(_lock);
             RE::GFxValue optionBoxes;
             GetControlHandler(optionBoxes);
             const RE::GFxValue val{ control };
             optionBoxes.Invoke("HandleKeyboardInput", nullptr, &val, 1);
-        });*/
+        });
+#endif
     }
 
     void SearchMenu::Handle(UI::Controls control) {
-        /*switch (control) {
+#ifdef ENABLE_SKYRIM_VR
+        (void)control;
+#else
+        using enum Controls;
+        switch (control) {
             case Up: {
                 SendControl(0);
             } break;
@@ -65,48 +73,36 @@ namespace UI::Search {
             case No: {
                 SendControl(5);
             } break;
-        }*/
+        }
+#endif
     }
 
     void SearchMenu::Show() {
+        if (UI::UIState::IsExternalUIEnabled()) {
+            return; // External UI (e.g., OStim Prism) is handling the UI
+        }
         OStimMenu::Show();
         ApplyPositions();
 
         auto controlMap = RE::ControlMap::GetSingleton();
-        if (REL::Module::get().version().patch() < 1130) {
-            controlMap->AllowTextInput(true);
-        } else {
-            // bandaid fix until CLib-NG is updated
-            int8_t* ptr = &controlMap->GetRuntimeData().textEntryCount;
-            ptr += 8;
-            if (*ptr != -1) {
-                ++(*ptr);
-            }
-        }
+        controlMap->AllowTextInput(true);
         
-        /*QueueUITask([this]() {
+#ifndef ENABLE_SKYRIM_VR
+        QueueUITask([this]() {
             Locker locker(_lock);
             RE::GFxValue optionBoxes;
             GetControlHandler(optionBoxes);
             const RE::GFxValue arg{ true };
             optionBoxes.Invoke("SetIsOpen", nullptr, &arg, 1);           
-        });*/ 
+        }); 
+#endif
     }
 
     void SearchMenu::Hide() {
         OStimMenu::Hide();
 
         auto controlMap = RE::ControlMap::GetSingleton();
-        if (REL::Module::get().version().patch() < 1130) {
-            controlMap->AllowTextInput(false);
-        } else {
-            // bandaid fix until CLib-NG is updated
-            int8_t* ptr = &controlMap->GetRuntimeData().textEntryCount;
-            ptr += 8;
-            if (*ptr != 0) {
-                --(*ptr);
-            }
-        }
+        controlMap->AllowTextInput(false);
         
 
         QueueUITask([this]() {
@@ -165,7 +161,7 @@ namespace UI::Search {
         auto state = UI::UIState::GetSingleton();
         for (int i = 0; i < results.size(); i++) {
             if(results[i]->actors.size() == state->currentThread->getActorCount() 
-                && state->currentThread->getFurnitureType()->isChildOf(results[i]->furnitureType)
+                && state->currentThread->getFurnitureTypeInternal()->isChildOf(results[i]->furnitureType)
                 && !results[i]->isTransition)
                 data.push_back(SearchItem{ results[i]->scene_id,results[i]->scene_name });
         }

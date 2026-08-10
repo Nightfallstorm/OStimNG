@@ -1,5 +1,5 @@
 ;/* OThreadBuilder
-* * helper script to build threads with more complex starting parameter
+* * helper script to build threads with more complex starting parameters
 * * basically a factory but limited by Papyrus, so not really a factory
 * *
 * * required API Version: 7.0 (29)
@@ -7,6 +7,34 @@
 * * note: the BuilderID is most likely not going to be the same as the thread id
 */;
 ScriptName OThreadBuilder
+
+;/* Example
+* * example function to show the use of the OThreadBuilder script
+*/;
+Function Example(Actor[] Actors)
+	; necessary: create builder
+	int BuilderID = OThreadBuilder.Create(Actors)
+
+	; optional: set a starting animation
+	string SceneID = OLibrary.GetRandomSceneSuperloadCSV(Actors, AnyActionType = "intercourse")
+	OThreadBuilder.SetStartingAnimation(BuilderID, SceneID)
+
+	; optional: set thread to undress actors at start
+	OThreadBuilder.UndressActors(BuilderID)
+
+	; optional: disable furniture for thread
+	OThreadBuilder.NoFurniture(BuilderID)
+
+	; optional: use any of the many other options
+	; there's too much configurability to list all of it
+	; you get the gist
+
+	; necessary: start thread
+	; optional: store thread ID if you need it
+	int ThreadID = OThreadBuilder.Start(BuilderID)
+EndFunction
+
+
 
 ;/* Create
 * * creates a a new thread builder
@@ -128,6 +156,15 @@ Function NoAutoMode(int BuilderID) Global Native
 */;
 Function NoPlayerControl(int BuilderID) Global Native
 
+;/* NoPostDialogue
+* * disables post scene dialogue for the thread
+* *
+* * required API Version: 7.4d (0x07040004)
+* *
+* * @param: BuilderID, the id of the thread builder
+*/;
+Function NoPostDialogue(int BuilderID) Global Native
+
 ;/* NoUnressing
 * * disables all undressing during the scene, no matter the MCM settings
 * * this also overrules UndressActors
@@ -174,6 +211,7 @@ Function SetMetadataCSV(int BuilderID, string Metadata) Global Native
 * * @param: BuilderID, the id of the thread builder
 * *
 * * @return: the id of the thread
+* * note: the BuilderID is most likely not going to be the same as the thread id
 */;
 int Function Start(int BuilderID) Global Native
 

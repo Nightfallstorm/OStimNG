@@ -99,16 +99,17 @@ namespace util {
         return path;
     }
 
-    std::optional<fs::path> database_path() {
-        auto path = documents_path();
-        if (!path) return std::nullopt;
+    std::optional<fs::path> settings_path() {
+        auto path = ostim_path();
+        if (!path) {
+            return std::nullopt;
+        }
 
-        *path /= "JCUser/ODatabase.json"sv;
-
+        *path /= "mcmsettings.json"sv;
         return path;
     }
 
-    std::optional<fs::path> settings_path() {
+    std::optional<fs::path> settings_path_legacy() {
         auto path = documents_path();
         if (!path) return std::nullopt;
 
@@ -133,6 +134,15 @@ namespace util {
             return std::nullopt;
         }
         *path /= "ui_settings.json"sv;
+        return path;
+    }
+
+    std::optional<fs::path> config_path() {
+        auto path = ostim_path();
+        if (!path) {
+            return std::nullopt;
+        }
+        *path /= "config.json"sv;
         return path;
     }
 

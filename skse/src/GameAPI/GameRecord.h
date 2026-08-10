@@ -10,15 +10,15 @@ namespace GameAPI {
         T* form = nullptr;
 
         inline operator bool() const { return form; }
-        inline bool operator==(const GameRecord<T> other) { return form == other.form; }
-        inline bool operator!=(const GameRecord<T> other) { return form != other.form; }
+        inline bool operator==(const GameRecord<T> other) const { return form == other.form; }
+        inline bool operator!=(const GameRecord<T> other) const { return form != other.form; }
 
         inline void clear() { form = nullptr; }
 
         inline void* toABIPointer() { return form; }
 
         void loadIdentifier(GameRecordIdentifier& identifier) {
-            loadFile(identifier.mod, identifier.formID);
+            form = RE::TESForm::LookupByID<T>(identifier.formID);
         }
 
         GameRecordIdentifier getIdentifier() {
@@ -26,27 +26,25 @@ namespace GameAPI {
                 return {};
             }
 
-            GameRecordIdentifier identifier;
-            identifier.formID = form->formID & 0xFFFFFF;
+            return {form->formID};
+        }
+
+        std::string getMod() {
+            if (!form) {
+                return "";
+            }
+
             uint8_t fullIndex = form->formID >> 24;
-            
-            const RE::TESFile* file;
+
+            const RE::TESFile* file = nullptr;
             if (fullIndex == 0xFE) {
-                uint16_t lightIndex = identifier.formID >> 12;
+                uint16_t lightIndex = (form->formID & 0xFFFFFF) >> 12;
                 file = RE::TESDataHandler::GetSingleton()->LookupLoadedLightModByIndex(lightIndex);
-                identifier.formID &= 0xFFF;
             } else {
                 file = RE::TESDataHandler::GetSingleton()->LookupLoadedModByIndex(fullIndex);
             }
 
-            if (!file) {
-                // generated records.. not sure what to do here
-                identifier.mod = "";
-            } else {
-                identifier.mod = file->GetFilename();
-            }
-
-            return identifier;
+            return file ? (std::string)file->GetFilename() : "";
         }
 
         void loadJson(std::string& path, json json) {
@@ -83,20 +81,16 @@ namespace GameAPI {
         }
 
         json toJson() {
-            json json = json::object();
-            if (!form) {
-                return json;
-            }
-
-            GameRecordIdentifier identifier = getIdentifier();
-            json["mod"] = identifier.mod;
-            json["formid"] = std::format("{:x}", identifier.formID);
-
-            return json;
+            return getIdentifier().toJson();
         }
 
         void loadFile(std::string mod, uint32_t formID) {
-            form = RE::TESDataHandler::GetSingleton()->LookupForm<T>(formID, mod);
+            //If mod not specified, indicates likely a runtime generated form. 
+            if (mod.empty()) {
+                form = RE::TESForm::LookupByID<T>(formID | (0xFF >> 24));
+            } else {
+                form = RE::TESDataHandler::GetSingleton()->LookupForm<T>(formID, mod);
+            }
         }
 
         void loadSerial(GameSerializationInterface serial) {

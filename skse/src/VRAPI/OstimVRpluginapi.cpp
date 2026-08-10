@@ -68,9 +68,10 @@ void OstimVRPluginAPI::OstimVRInterface001::GetMenuData(char ** outStr, int & ou
         }
     }
 
-    outStrLength = std::min((int)options.length(), 65536);
+    outStrLength = std::min(static_cast<int>(options.length()), 65536);
     if (outStrLength > 0 && *outStr!=nullptr) {
-        strcpy(*outStr, options.c_str());
+        std::memcpy(*outStr, options.c_str(), outStrLength);
+        (*outStr)[outStrLength] = '\0';
     }
 }
 
@@ -276,4 +277,39 @@ void OstimVRPluginAPI::OstimVRInterface001::ToggleLockHeightToBodyMode() {
 void OstimVRPluginAPI::OstimVRInterface001::OStimWheelOpenCloseEvent(bool opened, bool leftWheel)
 {
     OStimVR::ShowHideControllersFunc(opened);
+}
+
+bool OstimVRPluginAPI::OstimVRInterface001::IsInAutoMode() {
+    Threading::ThreadManager* threadManager = Threading::ThreadManager::GetSingleton();
+
+    if (threadManager != nullptr && threadManager->playerThreadRunning()) {
+        auto playerThread = threadManager->getPlayerThread();
+        if (playerThread != nullptr) {
+            return playerThread->isInAutoMode();
+        }
+    }
+    return false;
+}
+
+void OstimVRPluginAPI::OstimVRInterface001::StartStopAutoMode(bool start)
+{
+    Threading::ThreadManager* threadManager = Threading::ThreadManager::GetSingleton();
+
+    if (threadManager != nullptr && threadManager->playerThreadRunning()) 
+    {
+        auto playerThread = threadManager->getPlayerThread();
+        if (playerThread != nullptr) 
+        {
+            if (start)
+            {
+                if (playerThread->isInAutoMode() == false)
+                    playerThread->startAutoMode();
+            }
+            else 
+            {
+                if (playerThread->isInAutoMode())
+                    playerThread->stopAutoMode();
+            }
+        }
+    }
 }

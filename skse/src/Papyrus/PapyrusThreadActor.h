@@ -90,11 +90,15 @@ namespace PapyrusThreadActor {
     int GetTimesClimaxed(RE::StaticFunctionTag*, RE::Actor* actor) {
         Threading::ThreadActor* threadActor = Threading::ThreadManager::GetSingleton()->findActor(actor);
         if (threadActor) {
-            return threadActor->getTimexClimaxed();
+            return threadActor->getTimesClimaxed();
         }
         return 0;
     }
 
+
+    void SetExpressionsEnabled(RE::StaticFunctionTag*, RE::Actor* actor, bool enabled, bool allowOverride) {
+        ScriptAPI::Actor::setExpressionsEnabled(actor, enabled, allowOverride);
+    }
 
     float PlayExpression(RE::StaticFunctionTag*, RE::Actor* actor, std::string expression) {
         StringUtil::toLower(&expression);
@@ -174,14 +178,14 @@ namespace PapyrusThreadActor {
     void UndressPartial(RE::StaticFunctionTag*, RE::Actor* actor, int mask) {
         Threading::ThreadActor* threadActor = Threading::ThreadManager::GetSingleton()->findActor(actor);
         if (threadActor) {
-            threadActor->undressPartial(mask);
+            threadActor->undressPartialInternal(mask);
         }
     }
 
     void RedressPartial(RE::StaticFunctionTag*, RE::Actor* actor, int mask) {
         Threading::ThreadActor* threadActor = Threading::ThreadManager::GetSingleton()->findActor(actor);
         if (threadActor) {
-            threadActor->redressPartial(mask);
+            threadActor->redressPartialInternal(mask);
         }
     }
 
@@ -291,8 +295,8 @@ namespace PapyrusThreadActor {
         return Threading::ThreadManager::GetSingleton()->findActor(actor);
     }
 
-    int GetSceneID(RE::StaticFunctionTag*, RE::Actor* actor) {
-        Threading::Thread* thread = Threading::ThreadManager::GetSingleton()->findThread(actor);
+    int GetThreadID(RE::StaticFunctionTag*, RE::Actor* actor) {
+        Threading::Thread* thread = Threading::ThreadManager::GetSingleton()->findThread((GameAPI::GameActor)actor);
         return thread ? thread->m_threadId : -1;
     }
 
@@ -320,6 +324,7 @@ namespace PapyrusThreadActor {
         BIND(Climax);
         BIND(GetTimesClimaxed);
 
+        BIND(SetExpressionsEnabled);
         BIND(PlayExpression);
         BIND(ClearExpression);
         BIND(HasExpressionOverride);
@@ -354,7 +359,7 @@ namespace PapyrusThreadActor {
         BIND(SetMetaString);
 
         BIND(IsInOStim);
-        BIND(GetSceneID);
+        BIND(GetThreadID);
         BIND(VerifyActors);
 
         return true;

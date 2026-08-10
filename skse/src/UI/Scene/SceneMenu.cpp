@@ -26,11 +26,14 @@ namespace UI::Scene {
 
             RE::GFxValue args[1]{UI::Settings::fadeTime};
             optionBoxes.Invoke("SetSettings", nullptr, args, 1);
-            OStimMenu::PostRegister();
+            OStimMenu::PostRegister(); //for vr version
         });
     }
 
     void SceneMenu::Show() {
+        if (UI::UIState::IsExternalUIEnabled()) {
+            return; // External UI (e.g., OStim Prism) is handling the UI
+        }
         OStimMenu::Show();
         ApplyPositions();
         // Hide HUD
@@ -45,17 +48,25 @@ namespace UI::Scene {
     void SceneMenu::Hide() { OStimMenu::Hide(); }
 
     void SceneMenu::SendControl(int32_t control) {
-        /*QueueUITask([this, control]() {
+#ifdef ENABLE_SKYRIM_VR
+        (void)control;
+#else
+        QueueUITask([this, control]() {
             Locker locker(_lock);
             RE::GFxValue optionBoxes;
             GetOptionBoxes(optionBoxes);
             const RE::GFxValue val{control};
             optionBoxes.Invoke("HandleKeyboardInput", nullptr, &val, 1);
-        });*/
+        });
+#endif
     }
 
     void SceneMenu::Handle(UI::Controls control) {
-        /*switch (control) {
+#ifdef ENABLE_SKYRIM_VR
+        (void)control;
+#else
+        using enum Controls;
+        switch (control) {
             case Up: {
                 SendControl(0);
             } break;
@@ -78,7 +89,8 @@ namespace UI::Scene {
                     Show();
                 }
             }
-        }*/
+        }
+#endif
     }
 
     void SceneMenu::ApplyPositions() {
@@ -134,7 +146,7 @@ namespace UI::Scene {
 
             for (auto& nav : currentNode->navigations) {
                 if (nav.fulfilledBy(conditions) &&
-                    state->currentThread->getFurnitureType()->isChildOf(nav.nodes.back()->furnitureType)) {
+                    state->currentThread->getFurnitureTypeInternal()->isChildOf(nav.nodes.back()->furnitureType)) {
                     menuData.options.push_back({.nodeId = nav.nodes.front()->scene_id,
                                                 .title = nav.nodes.back()->scene_name,
                                                 .imagePath = nav.icon,
@@ -196,7 +208,9 @@ namespace UI::Scene {
         if (UI::Scene::SceneOptions::GetSingleton()->Handle(std::stoi(idx)) == UI::Scene::HandleResult::kExit) {
             SetOptionsOpen(false);
         }
-        //UpdateMenuData();
+#ifndef ENABLE_SKYRIM_VR
+        UpdateMenuData();
+#endif
     }
 
     void SceneMenu::ChangeSpeed(bool up) {

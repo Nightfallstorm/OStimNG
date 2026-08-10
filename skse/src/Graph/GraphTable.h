@@ -19,6 +19,7 @@ namespace Graph{
         static Action::ActionAttributes* GetActionAttributesByType(std::string type);
 
     private:
+        inline static std::unordered_map<std::string, Action::ActionTag> actionTags;
         inline static std::unordered_map<std::string, std::string> actionAliases;
         inline static std::unordered_map<std::string, Action::ActionAttributes> actions;
 #pragma endregion
@@ -36,8 +37,10 @@ namespace Graph{
 #pragma region nodes
     public:
         static void setupNodes();
+        static void reloadNode(std::string sceneId);
         static void addNode(Node* node);
         static void addNavigations(std::vector<RawNavigation> navigations);
+        static std::vector<Node*> getNodes();
         static Node* getNodeById(std::string id);
         static void searchNodesByName(std::string& name, std::vector<Node*>& results);
         static Node* getNodeByAnimation(std::string anim);

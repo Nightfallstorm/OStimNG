@@ -7,9 +7,10 @@ message("Using toolchain file ${CMAKE_TOOLCHAIN_FILE}.")
 ########################################################################################################################
 project(
         OStim
-        VERSION 7.3.4.0
+        VERSION 7.5.0.2
         DESCRIPTION ""
         LANGUAGES CXX)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
@@ -25,8 +26,11 @@ add_compile_definitions(SKYRIM)
 set(CommonLibPath "extern/CommonLibSSE-NG")
 set(CommonLibName "CommonLibSSE")
 set(GameVersion "Skyrim")
+set(ENABLE_SKYRIM_SE OFF CACHE BOOL "Disable Skyrim SE support for the VR-only build" FORCE)
+set(ENABLE_SKYRIM_AE OFF CACHE BOOL "Disable Skyrim AE support for the VR-only build" FORCE)
+set(ENABLE_SKYRIM_VR ON CACHE BOOL "Enable Skyrim VR support for the VR-only build" FORCE)
 
-if (DEFINED CommonLibPath AND NOT ${CommonLibPath} STREQUAL "" AND IS_DIRECTORY ${CommonLibPath})
+if (DEFINED CommonLibPath AND NOT ${CommonLibPath} STREQUAL "")
         add_subdirectory(${CommonLibPath} ${CommonLibName} EXCLUDE_FROM_ALL)
 else ()
         message(
@@ -50,23 +54,28 @@ set(sources
     src/Alignment/ActorKey.cpp
     src/Alignment/Alignments.cpp
     src/Alignment/ThreadKey.cpp
+    src/Config/Config.cpp
     src/Core/Core.cpp
     src/Core/EquipObjectHandler.cpp
     src/Core/ExpressionUpdater.cpp
     src/Core/Singleton.h
     src/Core/Thread/ThreadAutoControl.cpp
     src/Core/Thread/ThreadClimax.cpp
+    src/Core/Thread/ThreadFurniture.cpp
     src/Core/Thread/ThreadNavigation.cpp
     src/Core/Thread/ThreadSound.cpp
     src/Core/ThreadActor/ThreadActorAnimation.cpp
+    src/Core/ThreadActor/ThreadActorAPI.cpp
     src/Core/ThreadActor/ThreadActorClimax.cpp
     src/Core/ThreadActor/ThreadActorEquipObjects.cpp
     src/Core/ThreadActor/ThreadActorExcitement.cpp
     src/Core/ThreadActor/ThreadActorExpression.cpp
-    src/Core/ThreadActor/ThreadActorSound.cpp
+    src/Core/ThreadActor/ThreadActorSound.cpp    
+    src/Core/ThreadStarter/DebugNPCThreadStarter.cpp
     src/Core/ThreadStarter/NPCThreadStarter.cpp
     src/Core/ThreadStarter/PlayerThreadStarter.cpp
     src/Core/ThreadStarter/ThreadStarter.cpp
+    src/Core/ThreadStarter/ThreadStartParams.cpp
     src/Core/Thread.cpp
     src/Core/ThreadActor.cpp
     src/Core/ThreadInterface.cpp
@@ -99,11 +108,13 @@ set(sources
     src/Graph/Action/Peak/Loop/LoopPeakType.cpp
     src/Graph/Action/Peak/PeakType.cpp
     src/Graph/Action/Action.cpp
+    src/Graph/Action/ActionActor.cpp
     src/Graph/Action/ActionAttributes.cpp
     src/Graph/Action/ActionTag.cpp
     src/Graph/GraphTable/GraphTableActions.cpp
     src/Graph/GraphTable/GraphTableEvents.cpp
     src/Graph/GraphTable/GraphTableNodes.cpp
+    src/Graph/GraphTable/GraphTableReloadNode.cpp
     src/Graph/GraphTable/GraphTableSequences.cpp
     src/Graph/GraphTable/GraphTableSetupNodes.cpp
     src/Graph/GraphTable/GraphTableSetupOptions.cpp
@@ -121,13 +132,18 @@ set(sources
 	src/PCH.h
 	src/Papyrus/Papyrus.cpp
 	src/Papyrus/Script.h
+    src/PluginInterfaceImplementation/Furniture/FurnitureInterfaceImpl.cpp
     src/PluginInterfaceImplementation/Settings/SettingInterfaceImpl.cpp
     src/PluginInterfaceImplementation/SexToys/SexToyInterfaceImpl.cpp
+    src/PluginInterfaceImplementation/Threading/ThreadBuilderImpl.cpp
     src/PluginInterfaceImplementation/Threading/ThreadInterfaceImpl.cpp
     src/PluginInterfaceImplementation/InterfaceMapImpl.cpp
+	src/ScriptAPI/ActionDataScript.cpp
 	src/ScriptAPI/ActorScript.cpp
 	src/ScriptAPI/JsonScript.cpp
+	src/ScriptAPI/LibraryScript.cpp
 	src/ScriptAPI/MetadataScript.cpp
+	src/ScriptAPI/PlayerThreadScript.cpp
 	src/ScriptAPI/SettingsScript.cpp
 	src/ScriptAPI/ThreadScript.cpp
 	src/Serial/Manager.cpp
@@ -225,7 +241,9 @@ set(sources
         src/ModAPI/OstimNG-API-Main.cpp 
         src/ModAPI/OstimNG-API-Main.h
         src/ModAPI/OstimNG-API-Scene.h 
-        src/ModAPI/OstimNG-API-Scene.cpp
+        src/ModAPI/OstimNG-API-Scene.cpp	
+        src/ModAPI/OstimNG-API-Thread.h
+        src/ModAPI/OstimNG-API-Thread.cpp
 	src/VRAPI/OstimVRinterface001.h
 	src/VRAPI/OstimVRinterface001.cpp
 	src/VRAPI/OstimVRpluginapi.h
@@ -241,6 +259,8 @@ set(sources
     src/VRAPI/Utility.hpp
 	src/VRAPI/planckinterface001.h
 	src/VRAPI/planckinterface001.cpp
+	src/VRAPI/higgsinterface001.h
+	src/VRAPI/higgsinterface001.cpp
 
         ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 

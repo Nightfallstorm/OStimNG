@@ -12,7 +12,7 @@ namespace GameAPI {
         for (RE::Actor* actor : actors) {
             ret.push_back(actor);
         }
-
+        
         return ret;
     }
 
@@ -43,7 +43,7 @@ namespace GameAPI {
                 stopMovement(form);
             }
         }
-        form->GetFile();
+        
         RE::Actor* actor = form;
         SKSE::GetTaskInterface()->AddTask([actor]() {
             actor->SetGraphVariableBool("bHumanoidFootIKDisable", true);
@@ -66,16 +66,26 @@ namespace GameAPI {
             }
         }
 
-        StopTranslation(nullptr, 0, form);
 
         RE::Actor* actor = form;
         SKSE::GetTaskInterface()->AddTask([actor]() {
+            StopTranslation(nullptr, 0, actor);
+
             actor->SetGraphVariableFloat("OStimSpeed", 1.0);
             actor->SetGraphVariableBool("bHumanoidFootIKDisable", false);
             actor->SetGraphVariableBool("bHeadTrackSpine", true);
             actor->SetGraphVariableBool("bHeadTracking", true);
             actor->SetGraphVariableBool("tdmHeadtrackingBehavior", true);
-            actor->NotifyAnimationGraph("IdleForceDefaultState");
+            if (actor->HasKeyword(GameLogic::GameTable::getNPCKeyword())) {
+                actor->NotifyAnimationGraph("IdleForceDefaultState");
+            } else {
+                actor->NotifyAnimationGraph("Reset");
+                actor->NotifyAnimationGraph("ReturnToDefault");
+                actor->NotifyAnimationGraph("FNISDefault");
+                actor->NotifyAnimationGraph("IdleReturnToDefault");
+                actor->NotifyAnimationGraph("ForceFurnExit");
+                actor->NotifyAnimationGraph("ReturnDefaultState");
+            }
         });
     }
 
@@ -128,24 +138,34 @@ namespace GameAPI {
     }
 
     void GameActor::setRotation(float rotation) const {
-        // set rotation Z doesn't work on NPCs
+        // SetHeading doesn't work on NPCs
         // and SetAngle causes weird stuttering on the PC
         if (form->IsPlayerRef()) {
-            form->SetRotationZ(rotation);
+            form->SetHeading(rotation);
         } else {
-            SetAngle(nullptr, 0, form, 0, 0, MathUtil::toDegrees(rotation));
+            form->SetAngle(RE::NiPoint3{0, 0, rotation});
+            //SetAngle(nullptr, 0, form, 0, 0, MathUtil::toDegrees(rotation));
         }
     }
 
     void GameActor::setPosition(GamePosition position) const {
-        setRotation(position.r);
-        SetPosition(form, position.x, position.y, position.z);
+        //setRotation(position.r);
+        //SetPosition(form, position.x, position.y, position.z);
+        if (!form->Is3DLoaded()) {
+            return;
+        }
+        TranslateTo(nullptr, 0, form, position.x, position.y, position.z, 0, 0, MathUtil::toDegrees(position.r), 1000000, 1000000);
     }
 
     void GameActor::lockAtPosition(float x, float y, float z, float r) const {
-        StopTranslation(nullptr, 0, form);
-        setRotation(r);
-        TranslateTo(nullptr, 0, form, x, y, z, 0, 0, MathUtil::toDegrees(r) + 1, 1000000, 0.0001);
+        SKSE::GetTaskInterface()->AddTask([this, x, y, z, r] {
+            if (!form->Is3DLoaded()) {
+                return;
+            }
+            StopTranslation(nullptr, 0, form);
+            setRotation(r);
+            TranslateTo(nullptr, 0, form, x, y, z, 0, 0, MathUtil::toDegrees(r) + 1, 1000000, 0.0001);
+        });
     }
 
     int GameActor::getRelationshipRank(GameActor other) const {

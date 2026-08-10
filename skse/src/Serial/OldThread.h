@@ -113,7 +113,7 @@ namespace Serialization {
         }
 
         int threadID = 0;
-        GameAPI::GameObject furniture = nullptr;
+        GameAPI::GameObject furniture;
         GameAPI::GameOwnership furnitureOwner = nullptr;
         std::vector<OldThreadActor> actors;
 
@@ -145,7 +145,7 @@ namespace Serialization {
                 gameActors.push_back(actor.actor);
             }
 
-            GameAPI::GameEvents::sendEndEvent(threadID, "", gameActors);
+            GameAPI::GameEvents::sendEndEvent(threadID, nullptr, gameActors);
         }
     };
 }

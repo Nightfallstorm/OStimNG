@@ -19,8 +19,9 @@ namespace GameAPI {
 
         inline GameActor() {}
         inline GameActor(RE::Actor* actor) { form = actor; }
+        inline GameActor(void* actor) { form = (RE::Actor*)actor; }
 
-        inline uint32_t getBaseFormID() const { return form->GetActorBase()->formID; }
+        inline GameAPI::GameRecordIdentifier getBaseFormID() const { return GameAPI::GameRecordIdentifier{form->GetActorBase()->formID}; }
 
         void update3D() const;
         inline bool isLoaded() const { return form->Is3DLoaded(); }
@@ -56,14 +57,21 @@ namespace GameAPI {
         void setPosition(GamePosition position) const;
 
         inline float getActorValue(GameActorValue actorValue) const { return form->AsActorValueOwner()->GetBaseActorValue(actorValue.actorValue); }
-        inline void damageActorValue(GameActorValue actorValue, float value) const { form->AsActorValueOwner()->RestoreActorValue(RE::ACTOR_VALUE_MODIFIER::kDamage, actorValue.actorValue, -value);}
+        inline void damageActorValue(GameActorValue actorValue, float value) const { form->AsActorValueOwner()->DamageActorValue(actorValue.actorValue, value);}
 
         inline bool hasKeyword(GameKeyword keyword) const { return form->HasKeyword(keyword.form); }
         inline bool hasKeyword(std::string keyword) const { return form->HasKeywordString(keyword); }
 
         int getRelationshipRank(GameActor other) const;
         inline bool isInCombat() const { return form->IsInCombat(); }
-        inline bool isDead() const { return form->IsDead(); }
+        inline RE::ACTOR_LIFE_STATE getLifeState() const { return form->AsActorState()->GetLifeState(); }   //for vr version
+        inline bool isDead() const {   //for vr version
+            const auto lifeState = getLifeState();
+            return lifeState == RE::ACTOR_LIFE_STATE::kDying ||
+                   lifeState == RE::ACTOR_LIFE_STATE::kDead ||
+                   lifeState == RE::ACTOR_LIFE_STATE::kRecycle;
+        }
+        inline float getCurrentHealth() const { return form->AsActorValueOwner()->GetActorValue(RE::ActorValue::kHealth); }   //for vr version
         inline bool isInSameCell(GameActor other) const {return form->parentCell == other.form->parentCell;}
 
         inline int getItemCount(GameItem item) const { return GetItemCount(nullptr, 0, form, item.form); }

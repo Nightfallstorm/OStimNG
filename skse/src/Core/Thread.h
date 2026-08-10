@@ -20,6 +20,28 @@
 
 namespace Threading {
     using ThreadId = int64_t;
+
+    // State captured during thread migration to preserve context
+    struct ThreadMigrationState {
+        int currentSpeed = 0;
+        Graph::Node* currentNode = nullptr;
+        std::map<RE::FormID, float> actorExcitement;  // Key by actor FormID, not position!
+        std::map<RE::FormID, int> actorTimesClimaxed;
+        std::map<RE::FormID, int> actorTimeUntilClimax;
+        std::map<RE::FormID, bool> actorUndressed;  // Track if actor was undressed
+        std::vector<std::string> metadata;
+        bool autoMode = false;
+        AutoModeStage autoModeStage = AutoModeStage::NONE;
+        int stopTimer = 0;
+        ThreadFlags threadFlags = 0;
+        GameAPI::GameObject furniture;
+        Furniture::FurnitureType* furnitureType = nullptr;
+        GameAPI::GameOwnership furnitureOwner = nullptr;
+        // Camera state for player threads
+        float freeCamSpeedBefore = 0;
+        float worldFOVbefore = 0;
+        float timeScaleBefore = 0;
+    };
     class Thread : public OStim::Thread, public RE::BSTEventSink<RE::BSAnimationGraphEvent>{
     public:
         ThreadId m_threadId;
@@ -32,8 +54,12 @@ namespace Threading {
 
         void initContinue(ThreadStartParams params);
 
+        inline int getPlayerIndex() { return playerIndex; }
+
         inline ThreadFlags getThreadFlags() { return threadFlags; }
         inline bool isFlagged(ThreadFlag flag) { return (threadFlags & flag) == flag; }
+        inline void flag(ThreadFlag flag) { threadFlags |= flag; }
+        inline void unflag(ThreadFlag flag) { threadFlags &= ~flag; }
 
         inline Graph::Node* getCurrentNodeInternal() { return m_currentNode; }
         inline int getCurrentSpeed() { return m_currentNodeSpeed; }
@@ -75,11 +101,19 @@ namespace Threading {
         void stop();
         void stopFaded();
         void close();
+        
+        // Thread migration for player add/remove
+        void setMigrating(bool migrating) { isMigrating = migrating; }
+        void setContinuingActors(const std::vector<GameAPI::GameActor>& actors);
+        void restorePlayerSettings();
+        void setThreadEndOriginator(const std::string& originator) { threadEndOriginator = originator; }
+        ThreadMigrationState captureStateForMigration();
+        void restoreStateFromMigration(const ThreadMigrationState& state);
 
         inline GameAPI::GamePosition getCenter() { return center; }
 
         inline Threading::Threads::NodeHandler* getNodeHandler() { return nodeHandler; }
-
+    
         virtual RE::BSEventNotifyControl ProcessEvent(const RE::BSAnimationGraphEvent* a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource) override;
 
         Serialization::OldThread serialize();
@@ -89,6 +123,7 @@ namespace Threading {
 
         Graph::Node* m_currentNode = nullptr;
         bool playerThread = false;
+        int playerIndex = -1;
         std::map<int32_t, ThreadActor> m_actors;
 
         std::shared_mutex nodeLock;
@@ -106,6 +141,9 @@ namespace Threading {
 
         int stopTimer = 0;
         bool isStopping = false;
+        bool isMigrating = false;  // Set during migration to skip camera/fade operations
+        std::set<RE::FormID> continuingActors;  // Actors that will continue in new thread (use freeFast)
+        std::string threadEndOriginator;  // What caused the thread to end (e.g., "add", "remove", "swap", "normal")
 
         Threading::Threads::NodeHandler* nodeHandler = nullptr;
 
@@ -177,7 +215,7 @@ namespace Threading {
 #pragma region furniture
     public:
         inline GameAPI::GameObject getFurniture() { return furniture; }
-        inline Furniture::FurnitureType* getFurnitureType() { return furnitureType; }
+        inline Furniture::FurnitureType* getFurnitureTypeInternal() { return furnitureType; }
 
         void changeFurniture(GameAPI::GameObject furniture, Graph::Node* node);
 
@@ -188,6 +226,8 @@ namespace Threading {
         float furnitureScaleMult = 1.0f;
 
         void changeFurnitureInner(GameAPI::GameObject furniture, Graph::Node* node);
+        void addActorsToFurnitureFactions();
+        void removeActorsFromFurnitureFactions();
 #pragma endregion
 
 #pragma region navigation
@@ -196,7 +236,8 @@ namespace Threading {
         bool autoTransition(std::string type);
         bool autoTransition(int index, std::string type);
         void warpTo(Graph::Node* node, bool useFades);
-        inline void navigateTo(Graph::Node* node) { navigateTo(node, node->animationLengthMs); }
+        void queueWarp(Graph::Node* node, int duration);
+        inline void navigateTo(Graph::Node* node) { navigateTo(node, 0); }
         void navigateTo(Graph::Node* node, int duration);
         void queueNavigation(Graph::Node* node, int duration);
         void playSequence(Graph::Sequence* sequence, bool navigateTo, bool useFades);
@@ -211,6 +252,7 @@ namespace Threading {
         int nodeQueueCooldown = 0;
         std::queue<Graph::SequenceEntry> nodeQueue;
 
+        void fadeAndChangeNode(Graph::Node* node);
         void clearNodeQueue();
 #pragma endregion
 
@@ -234,6 +276,9 @@ namespace Threading {
         virtual void forEachThreadActor(OStim::ThreadActorVisitor* visitor) override;
 
         virtual OStim::Node* getCurrentNode() override;
+
+        virtual OStim::FurnitureType* getFurnitureType() override;
+        virtual void* getFurnitureObject() override;
 #pragma endregion
     };
 

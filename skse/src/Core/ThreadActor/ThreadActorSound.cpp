@@ -37,7 +37,7 @@ namespace Threading {
             if (eventTimer <= 0) {
                 playSound(eventReaction, eventPartner, true);
                 eventReaction = nullptr;
-                eventPartner = nullptr;
+                eventPartner = {};
             }
 
             return;
@@ -101,14 +101,16 @@ namespace Threading {
             return false;
         }
 
-        for (auto& [index, threadActor] : thread->getActors()) {
-            if (threadActor.actor == actor) {
-                continue;
-            }
+        if (MCM::MCMTable::preventSameVoiceCrossTalk()) {
+            for (auto& [index, threadActor] : thread->getActors()) {
+                if (threadActor.actor == actor) {
+                    continue;
+                }
 
-            if (threadActor.actor.getVoice() == actor.getVoice()) {
-                if (threadActor.actor.isTalking()) {
-                    return false;
+                if (threadActor.actor.getVoice() == actor.getVoice()) {
+                    if (threadActor.actor.isTalking()) {
+                        return false;
+                    }
                 }
             }
         }
@@ -137,14 +139,15 @@ namespace Threading {
                         setEventExpression(set->expression);
                     }
                     // reset mouth so lipsync doesn't look weird
-                    applyExpression(&Trait::TraitTable::fallbackExpression.female, Trait::ExpressionType::PHONEME, 5);
+                    applyExpression(&Trait::TraitTable::fallbackExpression.female, Trait::ExpressionType::PHONEME, 5, false);
                     if (voiceSet.voice && voiceSet.voice != actor.getVoice()) {
                         set->dialogue.sayAs(actor, partner, voiceSet.voice);
                     } else {
                         set->dialogue.sayTo(actor, partner);
                     }
                     isTalking = true;
-                    soundGracePeriod = 250;
+                    // the isTalking check doesn't work on the PC, so instead we just give them a much higher grace period
+                    soundGracePeriod = isPlayer ? 1500 : 250;
                     moanCooldown = set->moanIntervalOverride;
                     setDialogueCountdown();
                     startMoanCooldown();
@@ -192,6 +195,11 @@ namespace Threading {
         dialogueCountdown = 0;
         playSound(&voiceSet.climax, primaryPartner, true);
 
+        // isTalking doesn't work on the PC, so their post climax comment will cut off their climax
+        // as a workaround PCs will not have post climax comments for now because I don't know how to fix this
+        if (isPlayer) {
+            return;
+        }
         // post climax comment
         // the event timer will only start counting down once the previous sound has stopped playing
         if (voiceSet.climaxCommentSelf.empty()) {

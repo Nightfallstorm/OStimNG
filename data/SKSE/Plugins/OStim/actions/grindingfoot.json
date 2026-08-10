@@ -1,0 +1,118 @@
+{
+	"aliases":[
+		"grindfoot"	
+	],
+	"actor":{
+		"info": "the one with the vulva",
+		"stimulation":0.6,
+		"fullStrip":true,
+		"moan":true,
+		"talk":true,
+		"requirements":[
+			"vagina"
+		],
+		"strippingSlots":[
+			32,
+			49,
+			52,
+			53,
+			54
+		],
+		"faction":{
+			"info": "OStimGrindingFootActorFaction",
+			"mod": "OStim.esp",
+			"formid": "0xEFB"
+		},
+		"statFaction":{
+			"info": "OStimGrindingFootActorCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0xF5C"
+		},
+		"playerStatFaction":{
+			"info": "OStimGrindingFootWithPlayerActorCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0xFE3"
+		},
+		"climaxStatFaction":{
+			"info": "OStimGrindingFootActorClimaxCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0x8FE"
+		},
+		"playerClimaxStatFaction":{
+			"info": "OStimGrindingFootWithPlayerActorClimaxCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0x900"
+		},
+		"playerStatList":{
+			"info": "OStimGrindingFootWithPlayerActorList",
+			"mod": "OStim.esp",
+			"formid": "0x902"
+		},
+		"playerClimaxStatList":{
+			"info": "OStimGrindingFootWithPlayerActorClimaxList",
+			"mod": "OStim.esp",
+			"formid": "0x903"
+		},
+		"toySlot": "genital"
+	},
+	"target":{
+		"info": "the one with the foot",
+		"stimulation":0.2,
+		"maxStimulation":75,
+		"moan": true,
+		"talk":true,
+		"strippingSlots":[
+			37
+		],
+		"faction":{
+			"info": "OStimGrindingFootTargetFaction",
+			"mod": "OStim.esp",
+			"formid": "0xEFC"
+		},
+		"statFaction":{
+			"info": "OStimGrindingFootTargetCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0xFE2"
+		},
+		"playerStatFaction":{
+			"info": "OStimGrindingFootWithPlayerTargetCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0xFE4"
+		},
+		"partnerClimaxStatFaction":{
+			"info": "OStimGrindingFootTargetPartnerClimaxCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0x8FF"
+		},
+		"playerPartnerClimaxStatFaction":{
+			"info": "OStimGrindingFootWithPlayerTargetPartnerClimaxCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0x901"
+		},
+		"playerStatList":{
+			"info": "OStimGrindingFootWithPlayerTargetList",
+			"mod": "OStim.esp",
+			"formid": "0x904"
+		},
+		"playerPartnerClimaxStatList":{
+			"info": "OStimGrindingFootWithPlayerTargetPartnerClimaxList",
+			"mod": "OStim.esp",
+			"formid": "0x905"
+		}
+	},
+	"performer":{
+		"faction":{
+			"info": "OStimGrindingFootPerformerFaction",
+			"mod": "OStim.esp",
+			"formid": "0xEFD"
+		},
+		"floats":{
+			"stamina":1.0
+		}
+	},
+	"tags":[
+		"grinding",
+		"sexual",
+		"-vaginalstimulation"
+	]
+}

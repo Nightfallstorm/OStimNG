@@ -1,0 +1,80 @@
+{
+	"name": "$OStim2PCowgirlIdleMF",
+	"modpack": "OStim",
+	"length": 2.0,
+	"speeds":[
+		{
+			"animation": "OStim2PCowgirlIdleMF"
+		}
+	],
+	"navigations":[
+		{
+			"destination": "OStim2PSittingFemaleInMF",
+			"description": "$ostim_nav_return",
+			"icon": "OStim/symbols/return",
+			"priority": -1000
+		},
+		{
+			"destination": "OStim2PLyingKneelingMF",
+			"description": "$ostim_nav_sit_beside_t{0}",
+			"icon": "OStim/positional/leanback_f",
+			"priority": -900
+		},
+		{
+			"destination": "OStim2PCowgirlToReverseIdleMF",
+			"description": "$ostim_nav_turn_around_a{1}",
+			"icon": "OStim/sexual/reversecowgirl_alt_mf",
+			"priority": 0
+		},
+		{
+		  "destination": "OStim2PMaleSittingHandJobMF",
+		  "description": "$ostim_nav_handjob_t{0}",
+		  "icon": "OStim/sexual/handjob_mf",
+		  "priority": 900
+		},
+		{
+		  "destination": "OStim2PFaceRidingMF",
+		  "description": "$ostim_nav_facesitting_t{0}",
+		  "icon": "OStim/sexual/facesitting_mf",
+		  "priority": 1000
+		},
+		{
+			"destination": "OStim2PCowgirlMF",
+			"description": "$ostim_nav_cowgirl_t{0}",
+			"icon": "OStim/sexual/vaginalsex_mf",
+			"priority": 3000
+		}
+	],
+	"tags":[
+		"idle"
+	],
+	"actors":[
+		{
+			"intendedSex": "male",
+			"sosBend": 9,
+			"scale": 1.03,
+      		"lookUp": 25,
+			"tags": [
+				"lyingback",
+				"onbottom"
+			],
+			"feetOnGround": false
+		},
+		{
+			"intendedSex": "female",
+      		"lookUp": -70,
+			"tags": [
+				"kneeling",
+				"ontop"
+			],
+			"feetOnGround": false
+		}
+	],
+	"actions":[
+		{
+			"type": "mounting",
+			"actor": 1,
+			"target": 0
+		}
+	]
+}

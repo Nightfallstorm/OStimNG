@@ -46,8 +46,12 @@ namespace {
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] [%t] [%s:%#] %v");
     }
 
-    void UnspecificedSenderMessageHandler(SKSE::MessagingInterface::Message* a_msg) {        
-        switch (a_msg->type) {            
+    void UnspecificedSenderMessageHandler(SKSE::MessagingInterface::Message* a_msg) {
+        if (!a_msg) {
+            return;
+        }
+
+        switch (a_msg->type) {
             case OSAInterfaceExchangeMessage::kMessage_ExchangeInterface: {
                 OSAInterfaceExchangeMessage* exchangeMessage = (OSAInterfaceExchangeMessage*)a_msg->data;
                 exchangeMessage->interfaceMap = InterfaceMap::GetSingleton();
@@ -56,31 +60,39 @@ namespace {
                 OStim::InterfaceExchangeMessage* message = (OStim::InterfaceExchangeMessage*)a_msg->data;
                 message->interfaceMap = Interface::InterfaceMapImpl::getSingleton();
             } break;
-        }
-    }
+            case OstimVRPluginAPI::OstimVRMessage::kMessage_GetInterface: {
+                if (!a_msg->data) {
+                    logger::warn("Invalid OstimVR interface request from {}", a_msg->sender ? a_msg->sender : "<unknown>");
+                    break;
+                }
 
-    void OstimVRMessageHandler(SKSE::MessagingInterface::Message* a_msg) {
-        if (a_msg->type == OstimVRPluginAPI::OstimVRMessage::kMessage_GetInterface) 
-        {    
-            OstimVRPluginAPI::OstimVRMessage* ostimMessage = (OstimVRPluginAPI::OstimVRMessage*)a_msg->data;
-            ostimMessage->GetApiFunction = OstimVRPluginAPI::GetApi;
-            logger::info("Provided OstimVR plugin interface to {}", a_msg->sender);
+                OstimVRPluginAPI::OstimVRMessage* ostimMessage = (OstimVRPluginAPI::OstimVRMessage*)a_msg->data;
+                ostimMessage->GetApiFunction = OstimVRPluginAPI::GetApi;
+                logger::info("Provided OstimVR plugin interface to {}", a_msg->sender ? a_msg->sender : "<unknown>");
+            } break;
         }
     }
 
     void MessageHandler(SKSE::MessagingInterface::Message* a_msg) {        
         switch (a_msg->type) {
             case SKSE::MessagingInterface::kPostLoad: {
-                auto message = SKSE::GetMessagingInterface();
-                if (message) {
-                    message->RegisterListener(nullptr, OstimVRMessageHandler);
-                    logger::info("Registered OstimVR message handler");
-                }
-
                 SKSE::GetNiNodeUpdateEventSource()->AddEventSink(Events::EventListener::GetSingleton());
                 SKSE::GetCrosshairRefEventSource()->AddEventSink(Events::EventListener::GetSingleton());
 
-                Core::postLoad();                
+                Core::postLoad();    
+                
+                auto message = SKSE::GetMessagingInterface();
+                if (message) {
+                    if (!message->RegisterListener(nullptr, UnspecificedSenderMessageHandler)) {
+                        logger::warn("Failed to refresh plugin interface listeners at PostLoad");
+                    }
+
+                    if (message->RegisterListener("SpellWheelVR", UnspecificedSenderMessageHandler)) {
+                        logger::info("Registered OstimVR interface handler for SpellWheelVR");
+                    } else {
+                        logger::info("SpellWheelVR was not found while registering the OstimVR interface handler");
+                    }
+                }
             } break;
             case SKSE::MessagingInterface::kPostPostLoad: {
                 OStimVR::vrikInterface = vrikPluginApi::getVrikInterface001();
@@ -94,6 +106,12 @@ namespace {
                     logger::info("Got PLANCK interface");
                 } else {
                     logger::info("Did not get PLANCK interface");
+                }
+                OStimVR::higgsInterface = HiggsPluginAPI::GetHiggsInterface001();
+                if (OStimVR::higgsInterface) {
+                    logger::info("Got HIGGS interface");
+                } else {
+                    logger::info("Did not get HIGGS interface");
                 }
                 OStimVR::spellWheelInterface = spellwheelPluginApi::getSpellWheelInterface001();
                 if (OStimVR::spellWheelInterface) {
@@ -117,6 +135,15 @@ namespace {
                 RE::BSInputDeviceManager::GetSingleton()->AddEventSink(Events::EventListener::GetSingleton());
             } break;
             case SKSE::MessagingInterface::kDataLoaded: {
+                if (!OStimVR::spellWheelInterface) {
+                    OStimVR::spellWheelInterface = spellwheelPluginApi::getSpellWheelInterface001();
+                    if (OStimVR::spellWheelInterface) {
+                        logger::info("Got Spell Wheel VR interface on DataLoaded retry");
+                    } else {
+                        logger::info("Did not get Spell Wheel VR interface on DataLoaded retry");
+                    }
+                }
+				
                 GameLogic::GameTable::setup();
 
                 UI::PostRegisterMenus();
@@ -152,11 +179,11 @@ namespace {
 
 extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v;
-    v.PluginVersion(REL::Version("7.3.3.0"sv));
+    v.PluginVersion(REL::Version("7.5.0.2"sv));
     v.PluginName("OStim");
     v.AuthorName("VersuchDrei");
-    v.UsesAddressLibrary(true);
-    v.HasNoStructUse(true);
+    v.UsesAddressLibrary();
+    v.UsesNoStructs();
 
     return v;
 }();
@@ -164,7 +191,7 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
 extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Query(const SKSE::QueryInterface* a_skse, SKSE::PluginInfo* a_info) {
     a_info->infoVersion = SKSE::PluginInfo::kVersion;
     a_info->name = "OStim";
-    a_info->version = 0x07030030;
+    a_info->version = 0x07050002;
 
     return true;
 }

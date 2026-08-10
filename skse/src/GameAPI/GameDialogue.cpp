@@ -101,11 +101,9 @@ namespace GameAPI {
             std::string(info->parentTopic->GetFormEditorID()).substr(0, topicCharacters) + "_" +
             std::format("{:08x}", info->formID & (mod->IsLight() ? 0xFFF : 0xFFFFFF)) + "_1.fuz";
 
-        logger::info("path is: {}", path);
-
         
         SKSE::GetTaskInterface()->AddTask([actor, path] {
-            actor->PauseCurrentDialogue();
+            actor->StopCurrentDialogue();  //for vr version
             // the SpeakSound console command usually only works on the player if you're in third person and looking at the players face
             // otherwise it will either fail or outright crash the game
             // this is where the IsThirdPerson and GetHeading hooks from GameHooks.h come in
@@ -118,6 +116,5 @@ namespace GameAPI {
                 delete script;
             }
         });
-        
     }
 }

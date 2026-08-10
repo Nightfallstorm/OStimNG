@@ -6,6 +6,7 @@
 #include "GameAPI/Game.h"
 #include "GameAPI/GameCamera.h"
 #include "GameAPI/GameEvents.h"
+#include "GameLogic/GameHooks.h"
 #include "Graph/GraphTable.h"
 #include "Graph/Node.h"
 #include <Messaging/IMessages.h>
@@ -32,11 +33,18 @@ namespace Threading {
     Thread::Thread(int threadID, ThreadStartParams params) : m_threadId{threadID}, furniture{params.furniture} {
         nodeHandler = new Threading::Threads::NodeHandler(this);
 
-        for (GameAPI::GameActor actor : params.actors) {
-            playerThread |= actor.isPlayer();
+        for (int i = 0; i < params.actors.size(); i++) {
+            if (params.actors[i].isPlayer()) {
+                playerThread = true;
+                playerIndex = i;
+                break;
+            }
         }
 
         threadFlags = params.threadFlags;
+        for (std::string data : params.metadata) {
+            metadata.addMetadata(data);
+        }
 
         this->center = furniture ? furniture.getPosition() : (playerThread ? GameAPI::GameActor::getPlayer().getPosition() : params.actors.front().getPosition());
 
@@ -61,6 +69,10 @@ namespace Threading {
 
         for (int i = 0; i < params.actors.size(); i++) {
             addActorInner(i, params.actors[i].form);
+        }
+
+        if (furniture) {
+            addActorsToFurnitureFactions();
         }
 
         // TODO game API?
@@ -95,10 +107,6 @@ namespace Threading {
                 GameAPI::Game::setTimeScale(MCM::MCMTable::customTimeScale());
             }
         }
-
-        if ((params.threadFlags & ThreadFlag::NO_AUTO_MODE) == 0) {
-            evaluateAutoMode();
-        }
         
         if (params.duration > 0) {
             stopTimer = params.duration;
@@ -130,6 +138,9 @@ namespace Threading {
         }
 
         if (playerThread) {
+            if (REL::Module::IsVR()) {
+                GameLogic::VRPlayerClipUpdate::SetPlayerSceneActive(true);
+            }
             auto uiState = UI::UIState::GetSingleton();
             if (uiState) {
                 uiState->SetThread(this);
@@ -153,6 +164,8 @@ namespace Threading {
         } else if (!params.startingNodes.empty()) {
             playSequence(params.startingNodes, false, false);
         }
+
+        evaluateAutoMode();
     }
 
     void Thread::rebuildAlignmentKey() {
@@ -177,12 +190,26 @@ namespace Threading {
         return Alignment::Alignments::getActorAlignment(alignmentKey, m_currentNode, index);
     }
 
+    void Thread::fadeAndChangeNode(Graph::Node* node) {
+        std::thread fadeThread = std::thread([node] {
+            GameAPI::GameCamera::fadeToBlack(1);
+            std::this_thread::sleep_for(std::chrono::milliseconds(700));
+            Thread* thread = ThreadManager::GetSingleton()->getPlayerThread();
+            if (thread) {
+                thread->ChangeNode(node);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(550));
+            GameAPI::GameCamera::fadeFromBlack(1);
+        });
+        fadeThread.detach();
+    }
+
     void Thread::Navigate(std::string sceneId) {
         for (auto& nav : m_currentNode->navigations) {
             if (sceneId == nav.nodes.front()->scene_id) {
-                ChangeNode(nav.nodes.front());
+                warpTo(nav.nodes.front(), nav.nodes.front()->fadeOnEntry);
             }
-        }      
+        }
     }
 
     void Thread::ChangeNode(Graph::Node* a_node) {
@@ -251,7 +278,7 @@ namespace Threading {
                 } else if (MCM::MCMTable::partialUndressing()) {
                     uint32_t slotMask = m_currentNode->getStrippingMask(position);
                     if (slotMask != 0) {
-                        actor.undressPartial(slotMask);
+                        actor.undressPartialInternal(slotMask);
                         if ((slotMask & MCM::MCMTable::removeWeaponsWithSlot()) != 0) {
                             actor.removeWeapons();
                         }
@@ -304,6 +331,9 @@ namespace Threading {
         }
 
         if (playerThread) {
+            if (REL::Module::IsVR()) {
+                OStimVR::ScheduleFirstPersonHmdPositionRecenteringAfterAnimation();
+            }
             UI::UIState::GetSingleton()->NodeChanged(this, m_currentNode);
         }
 
@@ -380,20 +410,17 @@ namespace Threading {
         float z = alignment.offsetZ + offset.z;
         float r = alignment.rotation + offset.r;
 
-        if (REL::Module::IsVR() && threadActor->getActor().isPlayer()) 
-        {
+        threadActor->setScaleMult(alignment.scale * furnitureScaleMult);
+        threadActor->setSoSBend(alignment.sosBend);        
+
+        if (REL::Module::IsVR() && threadActor->getActor().isPlayer()) {
             OStimVR::VRIKLockPositionAndRotation(sin, cos, center.x + cos * x + sin * y, center.y - sin * x + cos * y,
                                                  center.z + z, center.r + MathUtil::toRadians(r),
                                                  threadActor->getActor().getScale());
-        } 
-        else 
-        {
+        } else {
             threadActor->getActor().lockAtPosition(center.x + cos * x + sin * y, center.y - sin * x + cos * y,
                                                    center.z + z, center.r + MathUtil::toRadians(r));
         }
-
-        threadActor->setScaleMult(alignment.scale * furnitureScaleMult);
-        threadActor->setSoSBend(alignment.sosBend);
     }
 
     void Thread::updateActorAlignment(int index, Alignment::ActorAlignment alignment) {
@@ -490,7 +517,11 @@ namespace Threading {
         for (auto& actorIt : m_actors) {
             if (m_currentNode) {
                 if (m_currentNode->speeds.size() > speed) {
-                    actorIt.second.playAnimation(m_currentNode->speeds[speed]);
+                    if (actorIt.second.getGraphActor()->singleSpeed) {
+                        actorIt.second.playAnimation(m_currentNode->speeds[0]);
+                    } else {
+                        actorIt.second.playAnimation(m_currentNode->speeds[speed]);
+                    }
 
                     // this fixes some face bugs
                     // TODO how to do this with GraphActor?
@@ -603,7 +634,7 @@ namespace Threading {
         gameRoles.target = roles.target->getActor();
         gameRoles.performer = roles.performer->getActor();
 
-        GameAPI::GameEvents::sendOStimEvent(m_threadId, graphEvent->id, gameRoles);
+        GameAPI::GameEvents::sendOStimEvent(m_threadId, graphEvent, gameRoles);
     }
 
 
@@ -634,11 +665,62 @@ namespace Threading {
         }
     }
 
+    void Thread::restorePlayerSettings() {
+        logger::info("Restoring player camera/UI settings");
+        UI::HideMenus();
+        GameAPI::GameCamera::endSceneMode(MCM::MCMTable::firstPersonAfterScene());
+
+        RE::INISettingCollection* ini = RE::INISettingCollection::GetSingleton();
+        RE::Setting* speed = ini->GetSetting("fFreeCameraTranslationSpeed:Camera");
+        if (speed) {
+            speed->data.f = freeCamSpeedBefore;
+        }
+
+        GameAPI::GameCamera::setWorldFOV(worldFOVbefore);
+
+        if (MCM::MCMTable::customTimeScale() > 0) {
+            GameAPI::Game::setTimeScale(timeScaleBefore);
+        }
+    }
+
+    void Thread::setContinuingActors(const std::vector<GameAPI::GameActor>& actors) {
+        continuingActors.clear();
+        for (auto& actor : actors) {
+            continuingActors.insert(actor.form->GetFormID());
+        }
+    }
+
     void Thread::close() {
         logger::info("closing thread {}", m_threadId);
 
+        if (playerThread) {
+            if (REL::Module::IsVR()) {
+                GameLogic::VRPlayerClipUpdate::SetPlayerSceneActive(false);
+            }
+            // During migration: close UI but DON'T reset camera - new thread will reuse it
+            UI::EndControlledScene();
+            if(!isMigrating) {
+                restorePlayerSettings();
+            }
+        }
+
+        // During migration: 
+        // - Actors NOT in continuingActors set: use free() (being removed, normal redress)
+        // - Actors IN continuingActors set: use freeFast() (continuing, synchronous)
+        // Normal close: use free() for all actors
         for (auto& actorIt : m_actors) {
-            actorIt.second.free();
+            RE::FormID actorID = actorIt.second.getActor().form->GetFormID();
+            bool actorContinuing = continuingActors.contains(actorID);
+            
+            if (isMigrating && actorContinuing) {
+                logger::info("Actor {} continuing to new thread - using freeFast()", actorIt.second.getActor().getName());
+                actorIt.second.freeFast();
+            } else {
+                if (isMigrating) {
+                    logger::info("Actor {} being removed - using free()", actorIt.second.getActor().getName());
+                }
+                actorIt.second.free();
+            }
         }
 
         if (furniture) {
@@ -648,35 +730,109 @@ namespace Threading {
                 // TODO properly use GameObject
                 Furniture::resetClutter(furniture.form, MCM::MCMTable::resetClutterRadius() * 100);
             }
+
+            removeActorsFromFurnitureFactions();
         }
 
-        if (playerThread) {
-            UI::EndControlledScene();
-            GameAPI::GameCamera::endSceneMode(MCM::MCMTable::firstPersonAfterScene());
-
-            RE::INISettingCollection* ini = RE::INISettingCollection::GetSingleton();
-            RE::Setting* speed = ini->GetSetting("fFreeCameraTranslationSpeed:Camera");
-            if (speed) {
-                speed->data.f = freeCamSpeedBefore;
-            }
-
-            GameAPI::GameCamera::setWorldFOV(worldFOVbefore);
-
-            if (MCM::MCMTable::customTimeScale() > 0) {
-                GameAPI::Game::setTimeScale(timeScaleBefore);
-            }
-        }
         logger::info("closed thread {}", m_threadId);
 
         EventUtil::invokeListeners(threadEndListeners);
 
-        GameAPI::GameEvents::sendEndEvent(m_threadId, m_currentNode->scene_id, getGameActors());
+        GameAPI::GameEvents::sendEndEvent(m_threadId, this, getGameActors(), threadEndOriginator);
+    }
+
+    ThreadMigrationState Thread::captureStateForMigration() {
+        logger::info("capturing state for thread migration from thread {}", m_threadId);
+        
+        ThreadMigrationState state;
+        state.currentSpeed = m_currentNodeSpeed;
+        state.currentNode = m_currentNode;
+        state.autoMode = autoMode;
+        state.autoModeStage = autoModeStage;
+        state.stopTimer = stopTimer;
+        state.threadFlags = threadFlags;
+        state.furniture = furniture;
+        state.furnitureType = furnitureType;
+        state.furnitureOwner = furnitureOwner;
+
+        // Capture camera settings for player threads
+        if (playerThread) {
+            state.freeCamSpeedBefore = freeCamSpeedBefore;
+            state.worldFOVbefore = worldFOVbefore;
+            state.timeScaleBefore = timeScaleBefore;
+        }
+
+        // Capture metadata
+        for (const std::string& data : metadata.getMetadata()) {
+            state.metadata.push_back(data);
+        }
+
+        // Capture actor excitement and climax data by FormID (not position index!)
+        for (auto& [index, threadActor] : m_actors) {
+            GameAPI::GameActor actor = threadActor.getActor();
+            RE::FormID actorID = actor.form->GetFormID();
+            state.actorExcitement[actorID] = threadActor.getExcitement();
+            state.actorTimesClimaxed[actorID] = Util::APITable::getTimesClimaxedFaction().getRank(actor);
+            state.actorTimeUntilClimax[actorID] = Util::APITable::getTimeUntilClimaxFaction().getRank(actor);
+            state.actorUndressed[actorID] = threadActor.isUndressed();
+        }
+
+        logger::info("captured state for {} actors", m_actors.size());
+        return state;
+    }
+
+    void Thread::restoreStateFromMigration(const ThreadMigrationState& state) {
+        logger::info("restoring state to thread {} from migration", m_threadId);
+
+        // Restore metadata
+        for (const std::string& data : state.metadata) {
+            metadata.addMetadata(data);
+        }
+
+        // Restore auto mode state
+        autoMode = state.autoMode;
+        autoModeStage = state.autoModeStage;
+        stopTimer = state.stopTimer;
+
+        // Restore camera settings for player threads (to avoid race condition with constructor)
+        if (playerThread && state.freeCamSpeedBefore != 0) {
+            logger::info("restoring camera settings from migration");
+            freeCamSpeedBefore = state.freeCamSpeedBefore;
+            worldFOVbefore = state.worldFOVbefore;
+            timeScaleBefore = state.timeScaleBefore;
+            // Camera is already in scene mode from old thread, settings already applied
+        }
+
+        // Restore actor excitement and climax data by matching FormID (positions may have changed!)
+        for (auto& [index, threadActor] : m_actors) {
+            RE::FormID actorID = threadActor.getActor().form->GetFormID();
+            if (state.actorExcitement.contains(actorID)) {
+                threadActor.setExcitement(state.actorExcitement.at(actorID));
+            }
+            if (state.actorTimesClimaxed.contains(actorID)) {
+                Util::APITable::getTimesClimaxedFaction().add(threadActor.getActor(), state.actorTimesClimaxed.at(actorID));
+            }
+            if (state.actorTimeUntilClimax.contains(actorID)) {
+                Util::APITable::getTimeUntilClimaxFaction().add(threadActor.getActor(), state.actorTimeUntilClimax.at(actorID));
+            }
+            if (state.actorUndressed.contains(actorID) && state.actorUndressed.at(actorID)) {
+                logger::info("Undressing actor {} (was undressed in old thread)", threadActor.getActor().getName());
+                threadActor.undress();
+            }
+        }
+
+        // Note: Node restoration happens in migrateThread() before thread starts
+        // If actor count matched, the node was added to startingNodes in ThreadStartParams
+        // If actor count changed, thread starts without a node and user selects appropriate animation
+
+        logger::info("state restored to thread {}", m_threadId);
     }
 
     void Thread::addActorSink(RE::Actor* a_actor) {
         RE::BSAnimationGraphManagerPtr graphManager;
         a_actor->GetAnimationGraphManager(graphManager);
         if (graphManager) {
+
 		    for (const auto& animationGraph : graphManager->graphs) {
 			    animationGraph->GetEventSource<RE::BSAnimationGraphEvent>()->AddEventSink(this);
 		    }
@@ -713,8 +869,14 @@ namespace Threading {
 
         std::string tag = a_event->tag.c_str();
 
+		//for VR version
         if (tag == "OStimClimax") {
-            GetActor(actor)->climax();
+            auto threadActor = GetActor(actor);
+            if (!REL::Module::IsVR()) {
+                threadActor->climax();
+            } else if (!actor->IsPlayerRef() && threadActor && m_currentNode && m_currentNode->hasActorTag(threadActor->index, "climaxing")) {
+                threadActor->climax();
+            }
         } else if (tag == "OStimEvent") {
             std::vector<std::string> payloadVec = stl::string_split(a_event->payload.c_str(), ',');
             if (payloadVec.size() == 2) {
@@ -730,11 +892,11 @@ namespace Threading {
         } else if (tag == "OStimUndressPartial") {
             std::string payload = a_event->payload.c_str();
             int mask = std::stoi(payload, nullptr, 16);
-            GetActor(actor)->undressPartial(mask);
+            GetActor(actor)->undressPartialInternal(mask);
         } else if (tag == "OStimRedressPartial"){
             std::string payload = a_event->payload.c_str();
             int mask = std::stoi(payload, nullptr, 16);
-            GetActor(actor)->redressPartial(mask);
+            GetActor(actor)->redressPartialInternal(mask);
         } else if (tag == "OStimRemoveWeapons") {
             GetActor(actor)->removeWeapons();
         } else if (tag == "OStimAddWeapons") {
@@ -803,80 +965,6 @@ namespace Threading {
         EventUtil::invokeListeners(peakListeners, action);
     }
 
-
-    void Thread::changeFurniture(GameAPI::GameObject furniture, Graph::Node* node) {
-        if (!furniture || this->furniture == furniture) {
-            return;
-        }
- 
-        if (playerThread && MCM::MCMTable::useFades()) {
-            std::thread fadeThread = std::thread([furniture, node] {
-                GameAPI::GameCamera::fadeToBlack(1);
-                std::this_thread::sleep_for(std::chrono::milliseconds(700));
-                Thread* thread = ThreadManager::GetSingleton()->getPlayerThread();
-                if (thread) {
-                    thread->changeFurnitureInner(furniture, node);
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(550));
-                GameAPI::GameCamera::fadeFromBlack(1);
-            });
-            fadeThread.detach();
-        } else {
-            changeFurnitureInner(furniture, node);
-        }
-    }
-
-    void Thread::changeFurnitureInner(GameAPI::GameObject furniture, Graph::Node* node) {
-        if (playerThread) {
-            GameAPI::GameCamera::endSceneMode(MCM::MCMTable::firstPersonAfterScene());
-        }
-
-        if (this->furniture) {
-            this->furniture.enableUse();
-            this->furniture.setOwner(furnitureOwner);
-            if (MCM::MCMTable::resetClutter()) {
-                // TODO properly use GameObject
-                Furniture::resetClutter(this->furniture.form, MCM::MCMTable::resetClutterRadius() * 100);
-            }
-        }
-
-
-        center = furniture.getPosition();
-        this->furniture = furniture;
-        furnitureType = Furniture::FurnitureTable::getFurnitureType(furniture, false);
-        furnitureOwner = furniture.getOwner();
-        furniture.disableUse();
-        furniture.setPrivate();
-
-        Furniture::FurnitureOffset offset = Furniture::getOffset(furniture);
-        float angle = furniture.getRotation();
-        float sin = std::sin(angle);
-        float cos = std::cos(angle);
-        center.r += offset.rotation;
-        center.x += cos * offset.x + sin * offset.y;
-        center.y += -sin * offset.x + cos * offset.y;
-        center.z += offset.z;
-        furnitureScaleMult = offset.scale;
-
-
-        if (!node) {
-            std::string nodeTag = MCM::MCMTable::useIntroScenes() ? "intro" : "idle";
-            std::string furnitureTypeID = furnitureType->getListType()->id;
-            if (furnitureTypeID == "bed") {
-                node = Graph::GraphTable::getRandomNode(furnitureType, getActorConditions(), [&nodeTag](Graph::Node* node) { return node->hasTag(nodeTag) && !node->hasActorTagOnAny("standing"); });
-            } else {
-                node = Graph::GraphTable::getRandomNode(furnitureType, getActorConditions(), [&nodeTag](Graph::Node* node) { return node->hasTag(nodeTag); });
-            }
-        }
-
-        ChangeNode(node);
-
-        if (playerThread) {
-            GameAPI::GameCamera::startSceneMode(MCM::MCMTable::useFreeCam());
-        }
-    }
-
-
     int32_t Thread::getThreadID() {
         return m_threadId;
     }
@@ -907,5 +995,13 @@ namespace Threading {
 
     OStim::Node* Thread::getCurrentNode() {
         return m_currentNode;
+    }
+
+    OStim::FurnitureType* Thread::getFurnitureType() {
+        return furnitureType;
+    }
+
+    void* Thread::getFurnitureObject() {
+        return furniture.toABIPointer();
     }
 }

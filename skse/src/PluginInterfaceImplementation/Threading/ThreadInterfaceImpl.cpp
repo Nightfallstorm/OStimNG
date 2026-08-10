@@ -1,10 +1,13 @@
 #include "ThreadInterfaceImpl.h"
 
+#include "ThreadBuilderImpl.h"
+#include "../InterfaceMapImpl.h"
+
 #include "Core/ThreadManager.h"
 
 namespace Interface {
     uint32_t ThreadInterfaceImpl::getVersion() {
-        return 1;
+        return InterfaceMapImpl::CORE_INTERFACE_VERSION;
     }
 
 
@@ -31,5 +34,24 @@ namespace Interface {
 
     void ThreadInterfaceImpl::registerThreadStopListener(OStim::ThreadEventListener* listener) {
         Threading::ThreadManager::GetSingleton()->registerThreadEndListener([listener](Threading::Thread* thread) { listener->listen(thread); });
+    }
+
+
+    OStim::ThreadBuilder* ThreadInterfaceImpl::createThreadBuilder(uint32_t actorCount, void** actors) {
+        std::vector<GameAPI::GameActor> gameActors;
+
+        for (int i = 0; i < actorCount; i++) {
+            GameAPI::GameActor actor = *(actors + i);
+            if (!Threading::isEligible(actor)) {
+                return nullptr;
+            }
+            gameActors.push_back(actor);
+        }
+
+        return new ThreadBuilderImpl(gameActors);
+    }
+
+    OStim::ThreadActor* ThreadInterfaceImpl::getActor(void* gameActor) {
+        return Threading::ThreadManager::GetSingleton()->findActor(gameActor);
     }
 }

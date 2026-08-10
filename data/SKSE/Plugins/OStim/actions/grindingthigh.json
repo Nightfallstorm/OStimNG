@@ -23,10 +23,42 @@
 			"mod": "OStim.esp",
 			"formid": "0xE67"
 		},
+		"statFaction":{
+			"info": "OStimGrindingThighActorCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0xF62"
+		},
+		"playerStatFaction":{
+			"info": "OStimGrindingThighWithPlayerActorCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0xFE8"
+		},
+		"climaxStatFaction":{
+			"info": "OStimGrindingThighActorClimaxCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0x906"
+		},
+		"playerClimaxStatFaction":{
+			"info": "OStimGrindingThighWithPlayerActorClimaxCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0x908"
+		},
+		"playerStatList":{
+			"info": "OStimGrindingThighWithPlayerActorList",
+			"mod": "OStim.esp",
+			"formid": "0x90A"
+		},
+		"playerClimaxStatList":{
+			"info": "OStimGrindingThighWithPlayerActorClimaxList",
+			"mod": "OStim.esp",
+			"formid": "0x90B"
+		},
 		"toySlot": "genital"
 	},
 	"target":{
 		"info": "the one with the thigh",
+		"stimulation":0.2,
+		"maxStimulation":75,
 		"moan": true,
 		"talk":true,
 		"strippingSlots":[
@@ -40,6 +72,36 @@
 			"info": "OStimGrindingThighTargetFaction",
 			"mod": "OStim.esp",
 			"formid": "0xE68"
+		},
+		"statFaction":{
+			"info": "OStimGrindingThighTargetCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0xFE7"
+		},
+		"playerStatFaction":{
+			"info": "OStimGrindingThighWithPlayerTargetCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0xFE9"
+		},
+		"partnerClimaxStatFaction":{
+			"info": "OStimGrindingThighTargetPartnerClimaxCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0x907"
+		},
+		"playerPartnerClimaxStatFaction":{
+			"info": "OStimGrindingThighWithPlayerTargetPartnerClimaxCounterFaction",
+			"mod": "OStim.esp",
+			"formid": "0x909"
+		},
+		"playerStatList":{
+			"info": "OStimGrindingThighWithPlayerTargetList",
+			"mod": "OStim.esp",
+			"formid": "0x90C"
+		},
+		"playerPartnerClimaxStatList":{
+			"info": "OStimGrindingThighWithPlayerTargetPartnerClimaxList",
+			"mod": "OStim.esp",
+			"formid": "0x90D"
 		}
 	},
 	"performer":{
@@ -53,6 +115,7 @@
 		}
 	},
 	"tags":[
-		"sexual"
+		"sexual",
+		"-vaginalstimulation"
 	]
 }

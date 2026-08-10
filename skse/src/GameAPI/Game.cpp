@@ -3,6 +3,7 @@
 #include "GameUtil.h"
 
 #include "Game/LocaleManager.h"
+#include "RE/M/MessageBoxMenu.h" 
 
 namespace GameAPI {
     void Game::setGameSpeed(float speed) {
@@ -34,17 +35,20 @@ namespace GameAPI {
             option = LocaleManager::GetSingleton()->GetLocalization(option);
         }
 
-        RE::TESDataHandler* handler = RE::TESDataHandler::GetSingleton();
-        if (handler->GetLoadedModIndex("UIExtensions.esp")) {
-            const auto skyrimVM = RE::SkyrimVM::GetSingleton();
-            auto vm = skyrimVM ? skyrimVM->impl : nullptr;
-            if (vm) {
-                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> scriptCallback(new UIExtMsgBoxCallbackFunctor(callback));
-                auto args = RE::MakeFunctionArguments(std::move(content), std::move(options));
-                vm->DispatchStaticCall("OSKSE", "UIExtMessageBox", args, scriptCallback);
+        if (options.size() != 1) {
+            RE::TESDataHandler* handler = RE::TESDataHandler::GetSingleton();
+            if (handler->GetLoadedModIndex("UIExtensions.esp")) {
+                const auto skyrimVM = RE::SkyrimVM::GetSingleton();
+                auto vm = skyrimVM ? skyrimVM->impl : nullptr;
+                if (vm) {
+                    RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> scriptCallback(new UIExtMsgBoxCallbackFunctor(callback));
+                    auto args = RE::MakeFunctionArguments(std::move(content), std::move(options));
+                    vm->DispatchStaticCall("OSKSE", "UIExtMessageBox", args, scriptCallback);
+                }
+                return;
             }
-            return;
         }
+        
 
         auto* messagebox = RE::MessageDataFactoryManager::GetSingleton()->GetCreator<RE::MessageBoxData>(RE::InterfaceStrings::GetSingleton()->messageBoxData)->Create();
         messagebox->callback = RE::make_smart<MessageBoxCallback>(callback);
@@ -52,6 +56,6 @@ namespace GameAPI {
         for (std::string& text : options) {
             messagebox->buttonText.push_back(text.c_str());
         }
-        messagebox->QueueMessage();
+        RE::MessageBoxMenu::QueueMessage(messagebox);   //for vr version
     }
 }
