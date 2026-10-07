@@ -200,7 +200,7 @@ namespace GameAPI {
 
         weaponry.rightHand = form->GetEquippedObject(false);
         weaponry.leftHand = form->GetEquippedObject(true);
-        weaponry.ammo = form->GetCurrentAmmo();
+        weaponry.ammo = static_cast<const RE::TESObjectREFR*>(form)->GetCurrentAmmo(); //VR only for now fix for equip crash
 
         return weaponry;
     }
@@ -208,7 +208,7 @@ namespace GameAPI {
     void GameActor::unequipWeaponry() const {
         RE::TESForm* rightHand = form->GetEquippedObject(false);
         RE::TESForm* leftHand = form->GetEquippedObject(true);
-        RE::TESAmmo* ammo = form->GetCurrentAmmo();
+        RE::TESAmmo* ammo = static_cast<const RE::TESObjectREFR*>(form)->GetCurrentAmmo(); //VR only for now fix for equip crash
 
         if (rightHand) {
             UnequipItem(nullptr, 0, form, rightHand, false, false);

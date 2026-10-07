@@ -46,6 +46,7 @@ namespace OStimVR
     void ApplyPlayerAnimObjectsForEvent(std::string_view animationEvent);
     void CameraSwitchFunc(bool firstPerson);
     bool GetIsCameraFirstPerson();
+    void ApplyFirstPersonPlayerHeadScale();
     void loadConfig();
     void saveGlobalAlignmentConfig();
     void loadGlobalAlignmentConfig();

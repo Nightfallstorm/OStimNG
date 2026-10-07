@@ -99,6 +99,9 @@ namespace OStimVR
     RE::NiMatrix3 sceneHeightOffsetBaselineRotation;
     std::uint32_t cameraTransitionGeneration = 0;
     std::uint32_t hmdPositionTransitionGeneration = 0;
+    std::atomic<std::uint32_t> playerHeadScaleGeneration{0};
+    float originalPlayerHeadScale = 1.0f;
+    bool originalPlayerHeadScaleValid = false;
 
     struct PlayerAnimObjectAttachment
     {
@@ -1077,6 +1080,68 @@ namespace OStimVR
         }
     }
 
+    RE::NiAVObject* GetPlayerHeadNode()
+    {
+        auto player = RE::PlayerCharacter::GetSingleton();
+        if (!player) {
+            return nullptr;
+        }
+
+        auto actor3D = player->Get3D(false);
+        if (!actor3D) {
+            actor3D = player->Get3D();
+        }
+        return actor3D ? actor3D->GetObjectByName(RE::BSFixedString("NPC Head [Head]")) : nullptr;
+    }
+
+    void RestorePlayerHeadScaleNow()
+    {
+        if (!originalPlayerHeadScaleValid) {
+            return;
+        }
+
+        if (auto head = GetPlayerHeadNode()) {
+            head->local.scale = originalPlayerHeadScale;
+        }
+    }
+
+    void RestorePlayerHeadScale()
+    {
+        const auto generation = ++playerHeadScaleGeneration;
+        RestorePlayerHeadScaleNow();
+
+        std::thread([generation]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(60));
+            SKSE::GetTaskInterface()->AddTask([generation]() {
+                if (generation != playerHeadScaleGeneration.load()) {
+                    return;
+                }
+                RestorePlayerHeadScaleNow();
+                originalPlayerHeadScaleValid = false;
+            });
+        }).detach();
+    }
+
+    void ApplyFirstPersonPlayerHeadScale()
+    {
+        if (!playerInScene || !CurrentCameraFirstPerson) {
+            return;
+        }
+
+        auto head = GetPlayerHeadNode();
+        if (!head) {
+            return;
+        }
+
+        if (!originalPlayerHeadScaleValid) {
+            originalPlayerHeadScale = head->local.scale;
+            originalPlayerHeadScaleValid = true;
+        }
+
+        ++playerHeadScaleGeneration;
+        head->local.scale = 0.0001f;
+    }
+
     void SetOstimVRSettings(bool firstPerson) {
         ResetSceneVRRotationForCameraSwitch();
 
@@ -1152,7 +1217,7 @@ namespace OStimVR
                 vrikInterface->setSettingDouble("headInFrontDistance", firstPerson ? HeadForwardDistance : orgHeadForwardDistance);
             }
 
-            vrikInterface->setSettingDouble("enableHead", 1);
+            vrikInterface->setSettingDouble("enableHead", firstPerson ? 0 : 1);
 
             if (FBTExists)
                 vrikInterface->setSettingDouble("enableBody", firstPerson ? 0 : 1);
@@ -1165,6 +1230,12 @@ namespace OStimVR
             vrikInterface->setSettingDouble("rotateHmdToBodySeconds", 0.0);
             vrikInterface->setSettingDouble("rotateHmdToBody", 0.0);
             vrikInterface->setSettingDouble("lockHmdToBody", 0.0);
+        }
+
+        if (firstPerson) {
+            ApplyFirstPersonPlayerHeadScale();
+        } else {
+            RestorePlayerHeadScale();
         }
 
         ShowHideControllersFunc(false);
@@ -1381,12 +1452,14 @@ namespace OStimVR
         ++cameraTransitionGeneration;
         ++hmdPositionTransitionGeneration;
         firstPersonBaseRotationValid = false;
+        RestorePlayerHeadScaleNow();
 
         if (vrikInterface != nullptr) {
             vrikInterface->setSettingDouble("rotateHmdToBodySeconds", 0.0);
             vrikInterface->setSettingDouble("rotateHmdToBody", 0.0);
             vrikInterface->restoreSettings();
         }
+        RestorePlayerHeadScale();
 
         RestoreSceneVRRotationBaseline();
 

@@ -16,6 +16,7 @@
 #include "Util/Globals.h"
 #include "Util/MathUtil.h"
 #include "Util.h"
+#include "VRAPI/OstimVR.h"
 
 namespace Events {
     RE::BSEventNotifyControl EventListener::ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event, RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
@@ -24,6 +25,9 @@ namespace Events {
             Threading::ThreadActor* threadActor = Threading::ThreadManager::GetSingleton()->findActor(actor);
             if (threadActor) {
                 threadActor->handleNiNodeUpdate();
+            }
+            if (REL::Module::IsVR() && actor->IsPlayerRef() && OStimVR::playerInScene && OStimVR::GetIsCameraFirstPerson()) {
+                OStimVR::ApplyFirstPersonPlayerHeadScale();
             }
         }
 
